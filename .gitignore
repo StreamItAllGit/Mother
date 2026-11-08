@@ -1,0 +1,77 @@
+# ==============================================================================
+# 1. 6-Folder Outer Container Exclusions (Local / Packaged / Ephemeral)
+# ==============================================================================
+/Archive/
+/Builds/
+/Installers/
+/Releases/
+/Sandbox/
+
+# ==============================================================================
+# 2. Toolchains, Virtual Environments & Package Caches
+# ==============================================================================
+.venv/
+venv/
+node_modules/
+.pnpm-store/
+
+# ==============================================================================
+# 3. Compiler, Linter & Test Outputs
+# ==============================================================================
+bin/
+obj/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vs/
+*.user
+*.suo
+*.pdb
+
+# ==============================================================================
+# 4. Unity / Game Engine Generated Directories (Outside Dev/Assets & Dev/Packages)
+# ==============================================================================
+/[Dd]ev/[Ll]ibrary/
+/[Dd]ev/[Tt]emp/
+/[Dd]ev/[Oo]bj/
+/[Dd]ev/[Bb]uild/
+/[Dd]ev/[Bb]uilds/
+/[Dd]ev/[Ll]ogs/
+/[Dd]ev/[Uu]ser[Ss]ettings/
+/[Dd]ev/[Mm]emoryCaptures/
+*.csproj
+*.unityproj
+*.sln
+!Dev/src/**/*.csproj
+!Dev/tests/**/*.csproj
+!Dev/Launcher/**/*.csproj
+!Dev/Installer/**/*.csproj
+!Dev/*.sln
+
+# ==============================================================================
+# 5. Runtime Databases, Secrets, Logs & Large Raw Media Captures
+# ==============================================================================
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+Dev/data/
+Dev/logs/
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+*.bak
+*.7z
+*.zip
+*.exe
+*.mkv
+*.mp4
+*.mov
+Thumbs.db
+.DS_Store

@@ -1,0 +1,13 @@
+{
+    "state": "active",
+    "project": "Mother",
+    "group": "Personal",
+    "relative_path": "Personal/Mother",
+    "tier": "Tier A (6-Folder)",
+    "version": "0.1.0",
+    "state_changed_at": "2026-11-04",
+    "last_version_at": "2026-11-04",
+    "production_subpath": "D:\\Programs\\Mother",
+    "superseded_by": null,
+    "notes": "Shared Suite Daemon (:5100) using strict Full SemVer (MAJOR.MINOR.PATCH) for at-a-glance sister-app interoperability."
+}
