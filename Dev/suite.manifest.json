@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schemas.local/suite.manifest.v2.json",
+  "schemaVersion": 2,
+  "suiteId": "mother",
+  "suiteName": "Mother",
+  "minSuiteVersion": "0.1.0",
+  "sdkVersion": "0.3.0",
+  "suitePort": 5100,
+  "appId": "mother",
+  "name": "Mother",
+  "shortName": "Mother",
+  "version": "0.1.0",
+  "brandAccent": "#38bdf8",
+  "executable": "app\\Mother.App.exe",
+  "launcherExecutable": "Mother.exe",
+  "workerArgs": [],
+  "internalPort": 5100,
+  "sandboxPort": 15100,
+  "gatewayBasePath": "/",
+  "apiBasePath": "/api/v1/suite",
+  "residency": {
+    "defaultMode": "warm",
+    "allowedModes": ["warm"],
+    "idleTimeoutMinutes": 0,
+    "wakeOnApiRequest": true,
+    "wakeOnUiNavigation": true,
+    "wakeOnSchedule": true
+  },
+  "endpoints": {
+    "health": "/api/v1/health",
+    "suiteHealth": "/api/v1/suite/health",
+    "apps": "/api/v1/suite/apps",
+    "trafficCop": "/api/v1/suite/scheduler/traffic-cop",
+    "coexistenceStatus": "/api/v1/suite/coexistence/status",
+    "doctorRun": "/api/v1/suite/doctor/run"
+  },
+  "capabilities": ["suite-daemon", "reverse-proxy", "traffic-cop", "coexistence-broker", "power-coordinator", "watchdog", "doctor", "pwa-gateway"],
+  "sharedMounts": [],
+  "mutuallyExclusiveWith": [],
+  "targetDrives": ["C:", "D:"],
+  "schedules": []
+}

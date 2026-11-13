@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mother — Personal Suite Supervisor</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b1120'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui' font-size='38' font-weight='800' fill='%2338bdf8'%3EM%3C/text%3E%3C/svg%3E" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/vendor/foundation/foundation-tokens.css" />
+  <link rel="stylesheet" href="/vendor/foundation/foundation-terminal.css" />
+  <link rel="stylesheet" href="/css/mother.css" />
+  <link rel="stylesheet" href="/css/mother-components.css" />
+</head>
+<body>
+  <div class="app-shell mother-shell" id="mother-shell">
+    <aside class="sidebar-nav-rail" id="sidebar-rail" aria-label="Mother Primary Navigation">
+      <div class="sidebar-brand">
+        <span class="brand-glyph" aria-hidden="true">M</span>
+        <div class="brand-copy">
+          <strong class="truncate-single">Mother</strong>
+          <span class="brand-version tabular-nums" id="suite-version">v0.1.0</span>
+        </div>
+        <button type="button" id="btn-sidebar-toggle" class="icon-btn" aria-label="Toggle sidebar (Ctrl+B)" data-tooltip-title="Sidebar" data-tooltip-body="Collapse or expand navigation (Ctrl+B)">☰</button>
+      </div>
+
+      <nav class="sidebar-nav-list" id="sidebar-nav" aria-label="Suite Sections">
+        <button type="button" class="nav-item is-active" data-route="fleet" aria-label="Fleet Overview">
+          <span class="nav-icon" aria-hidden="true">◈</span>
+          <span class="nav-label truncate-single">Fleet Overview</span>
+        </button>
+        <button type="button" class="nav-item" data-route="traffic-cop" aria-label="Traffic Cop and Coexistence">
+          <span class="nav-icon" aria-hidden="true">⚡</span>
+          <span class="nav-label truncate-single">Traffic Cop</span>
+          <span class="nav-pill tabular-nums" id="badge-conflicts">0</span>
+        </button>
+        <button type="button" class="nav-item" data-route="doctor" aria-label="Doctor, Power and Vaults">
+          <span class="nav-icon" aria-hidden="true">🩺</span>
+          <span class="nav-label truncate-single">Doctor &amp; Power</span>
+        </button>
+        <button type="button" class="nav-item" data-route="settings" aria-label="Suite Settings">
+          <span class="nav-icon" aria-hidden="true">⚙</span>
+          <span class="nav-label truncate-single">Settings</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button type="button" id="btn-omni-search" class="sidebar-action-btn" aria-label="Open Omni-Search (Ctrl+K)" data-tooltip-title="Omni-Search" data-tooltip-body="Jump to apps, locks, or commands (Ctrl+K)">
+          <span aria-hidden="true">⌘</span>
+          <span class="nav-label truncate-single">Search (Ctrl+K)</span>
+        </button>
+        <button type="button" id="btn-hotkeys" class="sidebar-action-btn" aria-label="Show Keyboard Shortcuts (?)" data-tooltip-title="Shortcuts" data-tooltip-body="View global suite hotkeys (?)">
+          <span aria-hidden="true">?</span>
+          <span class="nav-label truncate-single">Hotkeys (?)</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="app-body-column">
+      <header class="suite-topbar">
+        <div class="app-tab-strip" id="app-tab-strip" role="tablist" aria-label="Suite Application Tabs (Alt+1 to Alt+7)"></div>
+        <div class="topbar-actions">
+          <span class="status-chip tabular-nums" id="chip-mode">PROD</span>
+          <span class="status-chip tabular-nums" id="chip-power">STAY AWAKE</span>
+          <button type="button" id="btn-qr-access" class="btn-secondary" aria-label="Show Tailscale Mobile QR Code" data-tooltip-title="Mobile Access" data-tooltip-body="Open Tailscale WebUI QR code">QR</button>
+          <button type="button" id="btn-stop-all" class="btn-danger" aria-label="Stop all running sister apps" data-tooltip-title="Emergency Stop" data-tooltip-body="Gracefully stop all supervised sister processes">Stop All</button>
+        </div>
+      </header>
+
+      <main class="app-main-pane" id="main-pane" tabindex="-1">
+        <section id="view-container" class="view-container" aria-live="off"></section>
+        <section id="sister-frame-container" class="sister-frame-container" hidden>
+          <div class="sister-frame-bar">
+            <span class="truncate-single" id="sister-frame-title">Sister App</span>
+            <div class="row-gap">
+              <button type="button" id="btn-sister-wake" class="btn-secondary">Wake App</button>
+              <button type="button" id="btn-sister-open" class="btn-primary">Open Standalone</button>
+            </div>
+          </div>
+          <iframe id="sister-frame" class="sister-frame" title="Embedded Sister Application"></iframe>
+        </section>
+      </main>
+
+      <div id="terminal-host" class="terminal-host"></div>
+    </div>
+
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Mobile Navigation">
+      <button type="button" class="mobile-nav-btn is-active" data-route="fleet" aria-label="Fleet">
+        <span aria-hidden="true">◈</span><span>Fleet</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-route="traffic-cop" aria-label="Traffic Cop">
+        <span aria-hidden="true">⚡</span><span>Traffic</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-route="doctor" aria-label="Doctor and Power">
+        <span aria-hidden="true">🩺</span><span>Doctor</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-route="settings" aria-label="Settings">
+        <span aria-hidden="true">⚙</span><span>Settings</span>
+      </button>
+    </nav>
+  </div>
+
+  <aside id="detail-drawer" class="slide-over-drawer" aria-label="Detail Inspector" hidden>
+    <div class="drawer-header">
+      <h2 id="drawer-title" class="truncate-single">Details</h2>
+      <button type="button" id="drawer-close" class="icon-btn" aria-label="Close detail drawer">✕</button>
+    </div>
+    <div id="drawer-body" class="drawer-body"></div>
+  </aside>
+
+  <dialog id="omni-dialog" class="mother-dialog" closedby="any" aria-labelledby="omni-title">
+    <div class="dialog-panel">
+      <div class="dialog-header">
+        <h2 id="omni-title">Suite Omni-Search</h2>
+        <button type="button" class="icon-btn" data-close-dialog="omni-dialog" aria-label="Close Omni-Search">✕</button>
+      </div>
+      <input type="search" id="omni-input" class="mother-input" placeholder="Search sister apps, routes, or commands..." aria-label="Search suite commands and apps" />
+      <ul id="omni-results" class="omni-results"></ul>
+    </div>
+  </dialog>
+
+  <dialog id="hotkey-dialog" class="mother-dialog" closedby="any" aria-labelledby="hotkey-title">
+    <div class="dialog-panel">
+      <div class="dialog-header">
+        <h2 id="hotkey-title">Keyboard Shortcuts</h2>
+        <button type="button" class="icon-btn" data-close-dialog="hotkey-dialog" aria-label="Close Keyboard Shortcuts">✕</button>
+      </div>
+      <dl class="hotkey-list">
+        <dt>Alt + 1..7</dt><dd>Switch Outer Suite Application Tabs</dd>
+        <dt>Ctrl + B</dt><dd>Toggle Collapsible Left Sidebar</dd>
+        <dt>Ctrl + `</dt><dd>Toggle Docked Bottom Terminal</dd>
+        <dt>Ctrl + K</dt><dd>Open Omni-Search Palette</dd>
+        <dt>Ctrl + S</dt><dd>Save Settings (on Settings route)</dd>
+        <dt>?</dt><dd>Open Hotkey Cheat-Sheet</dd>
+        <dt>Escape</dt><dd>Dismiss Active Dialog, Drawer, or Tooltip</dd>
+      </dl>
+    </div>
+  </dialog>
+
+  <div id="mother-tooltip" class="foundation-tooltip" role="tooltip" hidden>
+    <div class="foundation-tooltip-title" id="tooltip-title"></div>
+    <div class="foundation-tooltip-body" id="tooltip-body"></div>
+  </div>
+
+  <div id="live-announcer" class="sr-only" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/vendor/foundation/foundation-terminal.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>Mother</AssemblyName>
+    <RootNamespace>Mother.Launcher</RootNamespace>
+    <ApplicationIcon>..\Assets\app_icon.ico</ApplicationIcon>
+    <Title>Mother</Title>
+    <Product>Mother</Product>
+    <Company>Personal Suite</Company>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Foundation.Launcher">
+      <HintPath>..\lib\Foundation.Launcher.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <EmbeddedResource Include="..\lib\Foundation.Launcher.dll" LogicalName="Foundation.Launcher.dll" />
+  </ItemGroup>
+
+</Project>

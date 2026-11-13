@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="Mother.Core/Mother.Core.csproj" />
+  <Project Path="Mother.Server/Mother.Server.csproj" />
+  <Project Path="Mother.App/Mother.App.csproj" />
+  <Project Path="Mother.Launcher/Mother.Launcher.csproj" />
+  <Project Path="Mother.Installer/Mother.Installer.csproj" />
+  <Project Path="Mother.Tests/Mother.Tests.csproj" />
+</Solution>

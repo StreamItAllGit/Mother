@@ -1,118 +1,118 @@
 # Mother — End-User Manual & Fleet Supervisor Guide (`USER_GUIDE.md`)
 
-> **Active Baseline Version:** `v0.1.0` (`v0.2.0` In-Dev) | **Full SemVer (`MAJOR.MINOR.PATCH`)** | **Owner:** `@tessa` ("The Manual Maker") | **Verified By:** `@dean` ([Standard 16 §3.5](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/16_PROJECT_DOSSIERS_AND_FEATURE_TRACKING.md))
+> **Active Baseline Version:** `v0.1.0` (`Live` — Next Horizon: `v0.2.0`) | **Full SemVer (`MAJOR.MINOR.PATCH`)** | **SDK Pin:** `Foundation v0.3.0` | **Owner:** `@tessa` ("The Manual Maker") | **Verified By:** `@dean` ([Standard 16 §3.5](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/16_PROJECT_DOSSIERS_AND_FEATURE_TRACKING.md))
 
-Welcome to the **`Mother`** User Guide. This manual explains what `Mother` (`:5100`) does, how to install and upgrade it, how to navigate its single-window outer tab bar and `🏛️ Fleet Overview` dashboard, and how to use it to supervise, schedule, and align all six of your sister applications (**Housekeeping**, **ShadowLibrary**, **Redroom**, **Greenroom**, **StreamEngine**, and **legacy-sister-app**).
+Welcome to the **`Mother`** User Guide. This manual explains what `Mother` (`:5100`) does, how to install and upgrade it, how to launch it via CLI or tray, how to navigate its Titanium Sky (`#38bdf8`) single-window shell, and how to supervise, schedule, and align all six sister applications (**Housekeeping**, **ShadowLibrary**, **Redroom**, **Greenroom**, **StreamEngine**, and **legacy-sister-app**).
 
 ---
 
 ## 1. What It Is & Who It's For
 
-**`Mother`** is the Single Shared Suite Daemon (`http://127.0.0.1:5100/`), unified system tray sentinel, reverse-proxy gateway, 3:00 AM disk traffic cop, post-run power coordinator, and cross-app settings broker for your workstation.
+**`Mother`** is the Single Shared Suite Daemon (`http://127.0.0.1:5100/`), unified Windows system tray sentinel, reverse-proxy gateway, disk traffic cop, post-run power coordinator, and cross-app settings broker for your workstation.
 
 ### What Problems `Mother` Solves for You
-1. **One System Tray Icon & One Window Instead of Six:** Instead of six separate background tray icons and six separate browser tabs competing for attention, `Mother` hosts your entire suite under a single **Titanium Sky (`#38bdf8`)** outer horizontal tab bar (`Alt+1..7`)—while still letting you pop any app out into its own standalone desktop window (`--window`) whenever you want it on a second monitor.
-2. **Partial Suite Freedom (Install 1 App or All 6):** You never have to install apps you don't use. If you only install `Housekeeping` and `Greenroom`, `Mother` only shows tabs and controls for `Housekeeping` and `Greenroom`.
-3. **Zero 3:00 AM Drive Thrashing:** When two apps schedule heavy disk jobs on the same physical hard drive at the same time (for example, a `ShadowLibrary` bit-rot scrub on `E:` while `Housekeeping` tries to repack archives on `E:`), `Mother`'s **Schedule Traffic Cop** automatically defers the second job for 30 minutes until the drive is free.
-4. **Safe Post-Run Sleep & Shutdown:** Instead of one app putting your PC to sleep while another app is halfway through ripping a disc or recording a stream, `Mother`'s **Post-Run Power Coordinator (`StayAwake / Sleep / Shutdown`)** waits until **every** installed sister app has `0` active and `0` queued jobs (and gives you a 60-second cancel toast) before sleeping or shutting down your PC.
-5. **1-Click Cross-App Settings Alignment:** `Mother` checks whether two sister apps have conflicting settings on the same folder and lets you align them with a single click.
+1. **One System Tray Icon & One Window Instead of Six:** Instead of six separate background tray icons and six browser tabs competing for attention, `Mother` hosts your entire suite under a single **Titanium Sky (`#38bdf8`)** outer horizontal tab strip (`Alt+1..7`)—while still letting you pop any app out into a standalone desktop window (`--window`) or browser (`--browser`).
+2. **Partial Suite Freedom (Install 1 App or All 6):** You never have to install apps you do not use. `Mother` discovers only the manifests present in `manifests\` (or your installed suite roots) and scales its tabs and checks automatically.
+3. **Zero 3:00 AM Drive Thrashing:** When two apps target the same physical drive or hold a `.hklock` sentinel (for example, a `ShadowLibrary` scrub while `Housekeeping` runs an archive job), `Mother`'s **Traffic Cop** flags live vs. stale locks and records schedule deferrals so drives never thrash.
+4. **Safe Post-Run Sleep & Shutdown:** Instead of one app sleeping your PC while another is mid-job, `Mother`'s **Post-Run Power Coordinator (`StayAwake`, `Sleep`, `Shutdown`)** waits until every registered sister app reports `0` active/queued jobs and `0` live `.hklock` holds (followed by a 60-second cancellable countdown) before sleeping or shutting down.
+5. **1-Click Cross-App Settings Alignment:** `Mother` inspects shared root `.coexistence.json` manifests and `/api/v1/coexistence/status`, surfacing conflicts with 1-click **`Apply Safe-Stagger`**.
 
 ---
 
-## 2. Installation / SDK Consumption & Upgrade
+## 2. Installation, Upgrading & Uninstalling (`Mother-Setup-v0.1.0-win-x64.exe`)
 
-### 2.1 Standalone Installation (`Mother-Setup-v0.1.0-win-x64.exe`)
+### 2.1 Standalone Installation
 1. Launch **`Mother-Setup-v0.1.0-win-x64.exe`** from `<WORKSPACE_ROOT>/Installers\` (or `<WORKSPACE_ROOT>/Mother\Installers\`).
-2. The **`650×434` Deep Slate Dark Setup Wizard** opens with the **Titanium Sky (`#38bdf8`)** header badge (`CLEAN INSTALL` or `UPGRADE DETECTED`):
-   - **Destination Folder:** Defaults to `<PROGRAMS_ROOT>/Mother`.
-   - **Checkboxes:**
-     - *Create Desktop and Start Menu shortcuts* (checked by default)
-     - *Start Mother automatically with Windows* (registers `\Mother_Watchdog`)
-     - *Launch Mother when setup finishes* (checked by default)
-3. Click **`Install`** (or **`Upgrade`**). Click **`Show Details ▾`** if you want to expand the window (`650×544`) and watch the live file extraction log.
-4. When the button turns emerald green (**`Finish`**), click it to launch `Mother`.
+2. The **4-Pillar Dark WinForms Setup Wizard** (`650×434` compact / `650×544` details, Titanium Sky `#38bdf8`) opens:
+   - **Destination Folder:** Defaults to `<PROGRAMS_ROOT>/Mother` (Clean Release Root: `Mother.exe`, `README.md`, `app\`, `scripts\`).
+   - **Options:** Desktop/Start Menu shortcuts, Windows startup (`\Mother_Watchdog`), and launch after setup.
+3. Click **`Install`** (or **`Upgrade`**). Click **`Show Details ▾`** to watch the live extraction log.
+4. Click **`Finish`** when complete to launch `Mother`.
 
-### 2.2 Automatic Co-Bootstrapping via Sister-App Installers (`v0.2.0+`)
-Whenever you install or upgrade any sister app (`Housekeeping`, `ShadowLibrary`, `Redroom`, `Greenroom`, `StreamEngine`, `legacy-sister-app`), its installer automatically drops its registration manifest into `<PROGRAMS_ROOT>/Mother\manifests\<app-id>.manifest.json` and hot-reloads `Mother` (`POST /api/v1/suite/apps/reload`) without interrupting running jobs.
+### 2.2 Upgrading & Uninstalling
+- **Upgrading:** Running a newer `Mother-Setup-v<Version>.exe` over an existing install detects the installation, creates a pre-upgrade backup under `backups\`, replaces only `app\` and `scripts\`, and preserves `manifests\`, `data\`, `logs\`, and your 20-snapshot config history.
+- **Uninstalling:** Run `Mother-Uninstall.exe` in your installation directory (or use Windows *Installed Apps*). Your `data\` and `logs\` directories are preserved by default unless you explicitly enable destructive purge (`--purge-data`).
+- **Automated / Sandbox Installer Flags:** Supports `--silent`, `--verify`, `--upgrade`, `--repair`, `--uninstall`, `--purge-data`, `--dry-run`, `--headless`, `--install-dir <dir>`, and `--test-mode` (auto-confines `--data-dir` to `<installDir>` when `--test-mode --install-dir` omits `--data-dir`).
 
-### 2.3 Upgrading & Uninstalling
-- **Upgrading:** Running a newer `Mother-Setup-v<Version>.exe` over `<PROGRAMS_ROOT>/Mother\` automatically detects your existing installation (`UPGRADE DETECTED`), replaces only `app\` and `scripts\`, and preserves all your `manifests\`, `data\`, `logs\`, and 20-snapshot config history.
-- **Uninstalling:** Run `<PROGRAMS_ROOT>/Mother\Mother-Uninstall.exe` (or use Windows *Installed Apps*). Your `data\` and `logs\` are preserved by default unless you explicitly check the red *Delete all user `data\`, `logs\`, and databases (destructive)* box.
+### 2.3 Sister-App Co-Bootstrapping (`v0.2.0+`)
+When sister-app installers register `<app-id>.manifest.json` in `<PROGRAMS_ROOT>/Mother\manifests\` and call `POST /api/v1/suite/apps/reload` (or when you click **`Reload Manifests`** in `Fleet Overview`), `Mother` adds or updates those tabs without restarting running daemons.
 
 ---
 
-## 3. First-Run Setup / Integration Quickstart
+## 3. First-Run Setup & Command-Line Launch Modes
 
-When `Mother` launches for the first time at `<PROGRAMS_ROOT>/Mother\Mother.exe` (`http://127.0.0.1:5100/`):
-1. **Automatic Sister-App Discovery:** `Mother` immediately scans `<PROGRAMS_ROOT>/Mother\manifests\*.manifest.json` and `<PROGRAMS_ROOT>/*\` (`AppDiscoveryService`), discovering every installed sister app whether it uses the new `v2` `suite.manifest.json` or legacy `v1` `mother.manifest.json` format.
-2. **Residency Startup (`Warm` vs `Cold`):**
-   - Installed apps configured as **`Warm`** (the default) are started automatically in the background (`--managed-by-mother --bind 127.0.0.1`) with their standalone tray icons hidden so only `Mother`'s master tray icon appears.
-   - Apps configured as **`Cold`** stay at **`0 MB` RAM** until you click their tab, call their API, or their scheduled run time arrives.
-3. **Fleet Coexistence Check:** Open the first tab (`🏛️ Fleet Overview`, **`Alt+1`**) and review the **Fleet Coexistence & Shared Storage Matrix** card. If any conflict banner is shown across your shared drives, click **`Align Fleet Settings`** to synchronize your sister apps in one click.
+When `Mother.exe` starts (`http://127.0.0.1:5100/`):
+1. **Automatic Dual-Schema Discovery:** `Mother` scans `manifests\*.json` and installed sister-app roots, supporting both Standard 17 `v2` `camelCase` (`suite.manifest.json`) and legacy `v1` `snake_case` (`mother.manifest.json`).
+2. **Residency Startup (`Warm` / `Cold` / `Disabled`):** `Warm` apps start automatically under `Mother` (`--managed-by-mother`); `Cold` apps stay at `0 MB` RAM until clicked, called via `/api/v1/apps/<app-id>/*`, or woken manually; `Disabled` apps stay parked.
+3. **CLI Launch Modes:**
+   - `Mother.exe --window <appId>` — Opens a specific sister app in its own dedicated desktop window.
+   - `Mother.exe --browser [<appId>]` — Opens `Mother` or a sister app in your default web browser.
+   - `Mother.exe --tray-only` *(or `--minimized`)* — Starts the daemon and tray icon quietly in the background.
+   - `Mother.exe --suite-tab <appId>` — Focuses an existing `Mother` window and switches directly to `<appId>`.
+   - `Mother.exe --diagnose` — Runs `🩺 Fleet System Doctor` and prints a JSON diagnostic summary (`0` pass/warn, `1` fail).
+   - `Mother.exe --test-mode --headless --data-dir <dir> --log-dir <dir>` — Executes a fail-closed Sandbox self-test and exits `0`.
 
 ---
 
-## 4. Dashboard / Component & SDK Surface Tour
+## 4. Dashboard & Interface Tour (Live `v0.1.0` Controls)
 
-`Mother`'s interface is organized along **two orthogonal axes** ([`v0.1.0.2026-11-04.md#L25`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/plans/v0.1.0.2026-11-04.md#L25)) so it never collides with the left sidebar inside your sister apps:
+`Mother`'s interface uses **two orthogonal navigation axes** ([`v0.1.0.2026-11-12.md`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/plans/v0.1.0.2026-11-12.md)) so outer suite controls never collide with inner sister-app sidebars:
 
-### 4.1 The Outer Horizontal Command Bar (Always Visible at the Top of `Mother`)
-| Control / Element | Hotkey | What It Does in Plain English |
+### 4.1 Outer Horizontal Topbar (`Alt+1..7` & Global Actions)
+| Control / Element | Hotkey | What It Does |
 | :--- | :---: | :--- |
-| **`🏛️ Fleet Overview` Tab** | `Alt+1` | Opens `Mother`'s master supervisor dashboard, schedule traffic cop, coexistence broker, and `🩺 Fleet System Doctor`. |
-| **Discovered Sister-App Tabs** (`🧹 Housekeeping`, `🟢 Greenroom`, `📚 ShadowLibrary`, `🔴 Redroom`, `🎮 legacy-sister-app`, `📡 StreamEngine`) | `Alt+2` .. `Alt+7` | Switches immediately to that sister app's full UI inside `Mother`. Each tab displays a live status dot (`🟢 Idle`, `🔵 Busy %`, `🟡 Paused`, `⚪ Cold Standby`, `🔴 Error`) and right-click context menu (`Pop Out to Own Window`, `Residency: Warm / Cold / Disabled`, `Restart App`). Inactive tabs automatically suspend (`TrySuspendAsync()`) so `Mother` uses `< 35 MB` of base RAM. |
-| **`🛑 Fleet Stop All`** | — | Emergency stop across the entire workstation: broadcasts `POST /api/v1/jobs/stop-all` to every running sister app, clearing queues and terminating child helper tools (`7z`, `ffmpeg`, `chdman`). |
-| **`⏸ Fleet Pause / ❄ Suspend All`** | — | Pauses all sister-app FIFO queues or freezes active child worker processes (`NtSuspendProcess`) so you can reclaim 100% CPU/disk immediately for gaming or live streaming. |
-| **`🧪 Fleet Dry Run`** | — | Toggles global simulation mode across all sister apps so you can preview what scheduled jobs would do without modifying files on disk. |
-| **`⚡ Post-Run: StayAwake / Sleep / Shutdown`** | — | Global power action selector. When set to `Sleep` or `Shutdown`, `Mother` waits until every installed sister app finishes its active and queued jobs, shows a 60-second cancellable toast, and then puts the PC to sleep or shuts it down. |
-| **`📱 Tailscale QR`** | — | Opens an offline SVG QR code modal so you can pair your phone or tablet over LAN (`:5100`) or Tailscale HTTPS (`:8500`) and install either the full Suite PWA or individual sister-app PWAs to your mobile home screen. |
+| **Outer Suite Tab Strip** (`Mother` + discovered sister apps) | `Alt+1` .. `Alt+7` | `Alt+1` shows Mother's Control Hub; `Alt+2`..`Alt+7` switch to each sister app's embedded frame (`/app/<appId>/`) with live status dots (`Wake App` / `Open Standalone` controls when embedded). |
+| **Status Chips (`PROD` / `SANDBOX`, `STAY AWAKE` / `SLEEP <N>S`)** | — | Displays live containment mode and current Post-Run Power policy or active countdown timer. |
+| **`QR` Button** | — | Opens the **Slide-Over Right Drawer** with an offline SVG QR code (`100.64.0.0/10` Tailscale CGNAT / local URL) for mobile PWA pairing. |
+| **`Stop All` Button** | — | Emergency stop: broadcasts `POST /api/v1/suite/jobs/stop-all` across all running sister workers and cancels any active power countdown. |
 
-### 4.2 Inside `🏛️ Fleet Overview` (Collapsible Left Sidebar Rail `Ctrl+B` + Main Pane)
-When `🏛️ Fleet Overview` (`Alt+1`) is active, the left vertical sidebar (`220px` expanded / `56px` collapsed via **`Ctrl+B`**) provides 6 dedicated supervisor views (`1..6`):
-1. **`Overview` (`1`):** Live cards for every installed sister app showing residency mode (`Warm` / `Cold` / `Disabled`), memory usage, active job progress, target drives, and the **Fleet Coexistence & Shared Storage Matrix** with 1-click **`Align Fleet Settings`** and the opt-in **`Auto-Align Shared Settings Across Fleet`** toggle (`default: false`).
-2. **`Fleet Schedules & Traffic Cop` (`2`):** Unified timeline of all recurring schedules (`Daily / Weekly / Monthly / Interval`) across every sister app, active `<Dir>\.<app>_<pid>.hklock` drive locks, and a history table of automatic 30-minute Traffic Cop deferrals (`📥 Export CSV / JSON`).
-3. **`Unified Logs` (`3` & `Ctrl+\``):** Aggregated real-time log stream combining `Mother` and all supervised sister daemons with app/level filters (`ALL`, `INFO`, `WARN`, `ERROR`). Also accessible from any view via the docked resizable **`Ctrl+\``** terminal drawer (`S` `25%` / `M` `40%` / `L` `60%`).
-4. **`Notifications` (`4`):** Configure Windows Tray Toast alerts and Discord Rich Embed webhooks (`#38bdf8` Titanium Sky) for fleet events (`Daemon Crash/Restart`, `Fleet Queue Complete`, `Pre-Sleep Countdown`, `Schedule Deferred`), plus a 1-click **`Send Test Notification`** button.
-5. **`Config Snapshots` (`5` & `Ctrl+S`):** Browse and restore any of the last **20 automatic configuration snapshots** (`data\config_history\`) or export/import your fleet configuration as JSON.
-6. **`🩺 Fleet System Doctor` (`6`):** Runs a comprehensive health check across `Mother` and all installed sister apps (binary versions, SQLite integrity, external tools, drive write permissions, port health, crash counts) with 1-click **`Backup All DBs (.7z)`** and **`Export Fleet Diagnostic Bundle (.zip)`**.
+### 4.2 Collapsible Sidebar (`Ctrl+B`), Mobile Bottom Nav (`<= 820px`) & Sub-Page Pills
+Press **`Ctrl+B`** to collapse/expand the left sidebar (`220px` $\leftrightarrow$ `56px`). On viewports `<= 820px`, navigation moves automatically to the fixed bottom bar (**`Fleet`**, **`Traffic`**, **`Doctor`**, **`Settings`**):
+1. **`Fleet Overview`:** Shows KPI cards (`Registered Apps`, `Online Now`, `Warm / Cold`, `Active Conflicts`), **`Reload Manifests`**, and the sortable **Supervised Sister Applications** table (`Wake` / `Stop` actions + click any row to open the **Slide-Over Right Drawer** for **`Warm` / `Cold` / `Disabled`** residency switching, `Target Drives`, `Shared Mounts`, and `Mutually Exclusive With` details).
+2. **`Traffic Cop`:** Organized into 3 **Sub-Page Pills** with **`Purge Stale Locks`** and **`Apply Safe-Stagger`** toolbar buttons:
+   - `Active Locks` (`.hklock` holds with `LIVE` / `STALE` status badges and `(UTC)` timestamps)
+   - `Coexistence Conflicts` (detected shared-resource overlaps)
+   - `Schedule Deferrals` (SQLite `schedule_deferrals` history)
+3. **`Doctor & Power`:** Organized into 4 **Sub-Page Pills** with **`Run Doctor`**, **`Auto-Repair`**, **`Backup DB`**, and **`Export Bundle`** toolbar buttons:
+   - `Doctor` (diagnostic check table with `PASS` / `WARN` / `FAIL` badges)
+   - `Power` (`StayAwake` / `Sleep` / `Shutdown` segmented picker, `Evaluate Tick`, `Cancel Countdown`, and `\Mother_Watchdog` registration badge)
+   - `Notifications` (`Send Test Notification` + `Notification Dispatch History` table)
+   - `DPAPI Vaults` (read-only key names, vault sizes, and `(UTC)` timestamps — never exposes plaintext secrets)
+4. **`Settings` (`Ctrl+S`):** Dedicated visual settings screen (**zero** raw `Key=Value` fields):
+   - Sentence case toggles: *Use global format rules*, *Allow Tailscale bind (100.64.0.0/10)*, *Auto-align sister app schedules*
+   - Segmented **Post-Run Power Policy** picker (`StayAwake`, `Sleep`, `Shutdown`) and numeric steppers (`Cold-Wake Idle (min)`, `Poll Interval (ms)`)
+   - **`Save Settings (Ctrl+S)`**, **`Export Settings JSON`**, and the **20-Snapshot Rollback Table** (`Rollback` button on any retained snapshot)
 
----
-
-## 5. Everyday Workflows — Fleet Supervision, Job Arbitration, Shared UI/Backend Primitives
-
-### Workflow 1: Switching an App Between `Warm` (Instant) and `Cold` (`0 MB` Idle RAM)
-If you use `Greenroom` and `Housekeeping` every day, keep them **`Warm`**. If you only use `Redroom` when ripping physical discs once a week, set it to **`Cold`**:
-1. In `🏛️ Fleet Overview` -> `Overview` (or by right-clicking the `🔴 Redroom` tab in the top bar), change **Residency Mode** from `Warm` to **`Cold`**.
-2. `Mother` gracefully stops the `Redroom` background worker once it is idle (`0 MB` RAM, `0%` CPU).
-3. The next time you click the `🔴 Redroom` tab (or when a `Redroom` schedule comes due), `Mother` automatically wakes `Redroom` in the background (`250ms` health poll) and opens the UI seamlessly.
-
-### Workflow 2: Popping a Sister App Out to Its Own Monitor (`--window`)
-Want `Greenroom` on Monitor 1 and `Housekeeping` on Monitor 2 at the same time?
-1. Right-click any app tab in `Mother`'s outer top bar and select **`🗗 Pop Out to Own Window`** (or run `<PROGRAMS_ROOT>/Housekeeping\Housekeeping.exe --window`).
-2. A dedicated desktop window opens for that app with its own taskbar icon and saved window position—while still powered underneath by `Mother`'s single shared daemon (`:5100`) with zero duplicate background processes.
-
-### Workflow 3: Running Overnight Jobs with Automatic Post-Run PC Sleep
-1. Queue your overnight ROM verification in `ShadowLibrary` and media transcoding in `Housekeeping`.
-2. In `Mother`'s top horizontal command bar, change **`⚡ Post-Run`** from `StayAwake` to **`Sleep`** (or **`Shutdown`**).
-3. Go to bed! `Mother`'s **Schedule Traffic Cop** will prevent drive collisions if both apps touch the same drive, and `Mother`'s **Post-Run Power Coordinator** will wait until **every** sister app hits `0` active and `0` queued jobs, display a 60-second cancellable notification toast (+ Discord alert), and then put your PC to sleep safely.
+### 4.3 Docked Terminal (`Ctrl+\``), Dialogs (`Ctrl+K`, `?`), Tables & Tooltips
+- **Docked Terminal (`Ctrl+\``):** Toggles the bottom `<foundation-terminal>` drawer (`S` / `M` / `L` height presets) streaming real-time SSE `log_line` events with Clear and Stop All controls.
+- **Omni-Search (`Ctrl+K`) & Hotkeys (`?`):** Native `<dialog closedby="any">` overlays (`Escape` or backdrop click to dismiss) to jump directly to any route or sister app (`Ctrl+K`) or view all shortcuts (`?`).
+- **Sortable Accessible Tables:** Column headers sort deterministically (`Intl.Collator` + `moveBefore`), support row **Bulk Select** checkboxes, and include **`Export CSV`** / **`Export JSON`** toolbars.
+- **2-Line Styled Tooltips:** Hovering or focusing primary controls shows clean 2-line styled tooltips (`data-tooltip-title` / `data-tooltip-body`) with zero native `title=""` clutter.
 
 ---
 
-## 6. Notifications, Tray/Daemon Controls & Scheduling
+## 5. Everyday Workflows
 
-### 6.1 The Single System Tray Sentinel (`Global\Mother_Supervisor_Active`)
-Right-clicking `Mother`'s Titanium Sky icon in the Windows system tray gives you instant access to:
-- **Aggregate Fleet Status Header:** Shows `Fleet Idle (6/6 Online)` or `Fleet Busy — 2 Active Jobs (64%)`.
-- **`Open Mother Suite Window`** (or double-click tray icon).
-- **Per-App Submenus** for each installed sister app:
-  - `Open in Suite Tab` / `Pop Out to Own Window` / `Open in Browser`
-  - `Residency: Warm (Resident)` / `Cold (0 MB Auto-Wake)` / `Disabled`
-  - `Restart Worker` / `Stop App Jobs`
-- **Quick Fleet Actions:** `⚡ Post-Run: StayAwake / Sleep / Shutdown`, `⏸ Pause All Queues`, `🛑 Fleet Stop All`, `🩺 Run Fleet System Doctor`, and `Exit Mother & Stop Fleet`.
+### Workflow 1: Switching an App Between `Warm` and `Cold` (`0 MB` Idle RAM)
+1. In **`Fleet Overview`**, click any sister app row to open the **Slide-Over Right Drawer**.
+2. Click **`Warm`**, **`Cold`**, or **`Disabled`** in the **Residency Mode** segmented picker.
+3. `Cold` apps stay stopped (`0 MB` RAM) until you click their outer tab (`Alt+2..7`), click **`Wake`**, or hit `/api/v1/apps/<appId>/*`.
 
-### 6.2 Master Watchdog (`\Mother_Watchdog`) & Schedule Traffic Cop
-- **`\Mother_Watchdog`:** `Mother` owns the single Windows Task Scheduler watchdog entry for the entire suite (`\Mother_Watchdog`), polling child `/api/v1/health` endpoints every 3 seconds and auto-restarting any crashed daemon (up to 3 times in 60 seconds before tripping the crash-loop circuit breaker).
-- **Cold-Wake Scheduling & Drive Deferral:** Even if a sister app is set to **`Cold`** (`0 MB` idle), `Mother` reads its `schedules[]` array from `manifests\<app-id>.manifest.json`, wakes the app when its UTC schedule (`RunIfMissed`) comes due, and automatically issues a 30-minute `/api/v1/scheduler/defer` if another app is already holding a `.hklock` or running a heavy job on the target drive.
+### Workflow 2: Safe Overnight Post-Run Sleep or Shutdown
+1. Open **`Doctor & Power`** $\rightarrow$ **`Power`** (or **`Settings`**) and select **`Sleep`** (or **`Shutdown`**).
+2. While any sister app has active/queued jobs or a live `.hklock` hold, `Mother` inhibits sleep (`SLEEP INHIBITED: YES`).
+3. Once all apps hit `0` active/queued jobs and `0` live locks, a **60-second cancellable countdown** begins (`SLEEP 60S` in the topbar; click **`Cancel Countdown`** anytime to abort back to `StayAwake`).
+
+### Workflow 3: Resolving Drive Contention & Coexistence Drift
+1. Open **`Traffic Cop`**. If dead-PID `.hklock` files appear as `STALE`, click **`Purge Stale Locks`**.
+2. Switch to the **`Coexistence Conflicts`** pill and click **`Apply Safe-Stagger`** to align presets and update `<SharedRoot>\.coexistence.json`.
+
+---
+
+## 6. System Tray Sentinel & Master Watchdog (`\Mother_Watchdog`)
+
+- **Single System Tray Icon (`Global\Mother_Supervisor_Active`):** Right-clicking `Mother`'s tray icon lets you open the Control Hub, switch directly to a sister tab, run `Doctor`, or cleanly exit the suite daemon. When `Explorer` restarts, `TaskbarCreated` automatically restores the tray icon.
+- **`\Mother_Watchdog`:** `Mother` centralizes Task Scheduler recovery in a single `\Mother_Watchdog` entry and monitors child daemons with a `3 crashes in 60s` circuit breaker.
 
 ---
 
@@ -120,11 +120,11 @@ Right-clicking `Mother`'s Titanium Sky icon in the Windows system tray gives you
 
 | Question / Symptom | Root Cause | Solution / Remediation |
 | :--- | :--- | :--- |
-| **A newly installed sister app doesn't appear in `Mother`'s top tab bar** | The app's manifest was not yet reloaded or is missing from `<PROGRAMS_ROOT>/Mother\manifests\`. | Open `🏛️ Fleet Overview` and click **`Reload Installed Apps`** (`POST /api/v1/suite/apps/reload`), or copy `<AppRoot>\app\suite.manifest.json` to `<PROGRAMS_ROOT>/Mother\manifests\<app-id>.manifest.json`. |
-| **A sister-app tab shows a red dot (`Crash-Loop Circuit Breaker Tripped`)** | The child daemon crashed 3 times within 60 seconds, so `Mother` paused auto-restarts to protect your system. | Press **`Ctrl+\``** to inspect the child app's last 50 log lines and `logs\crashes\crash_*.json` in the Unified Log Drawer, fix the underlying issue (e.g. a locked port or missing drive), and click **`Reset Circuit Breaker & Restart`** on the app card. |
-| **Why was my 3:00 AM scheduled scan delayed by 30 minutes?** | Another sister app was actively running a job or holding a `.hklock` on the same physical drive (`targetDrives`). | Working as designed: check `🏛️ Fleet Overview` -> `Fleet Schedules & Traffic Cop` to see the exact deferral reason (`Suite Drive I/O Mutex`). |
-| **Why didn't `Mother` put my PC to sleep when `Housekeeping` finished?** | Another registered sister app (such as `StreamEngine` recording a VOD or `ShadowLibrary` running a queued audit) still had `activeJobs > 0` or `queuedJobs > 0`. | `Mother` never sleeps the PC while any sister app is still working. Check the top bar or tray icon to see which app is still busy. |
-| **Both `Mother` and a sister app are showing system tray icons** | The sister app was launched manually without `--managed-by-mother` before `Mother` started. | Restart the sister app from `Mother`'s `🏛️ Fleet Overview` card (or run `Mother`), which passes `--managed-by-mother` and sets `Global\Mother_Supervisor_Active` so only `Mother`'s single tray icon is shown. |
+| **A newly installed sister app is missing from `Mother`'s tab bar** | Its manifest was added after boot. | Click **`Reload Manifests`** in **`Fleet Overview`** (`POST /api/v1/suite/apps/reload`). |
+| **A `.hklock` entry stays listed after an app crashed** | The previous process exited without deleting its lockfile. | Open **`Traffic Cop`** $\rightarrow$ **`Active Locks`** (status shows `STALE`) and click **`Purge Stale Locks`**. |
+| **Why didn't `Mother` sleep my PC after one app finished?** | Another sister app still had active/queued jobs or a live `.hklock`. | Check **`Fleet Overview`** and **`Traffic Cop`**; `Mother` waits until every registered app is idle before starting the 60s countdown. |
+| **How do I revert a bad settings change?** | Saved changes are stored in `data\config_history\`. | Open **`Settings`** (`Ctrl+S` screen) and click **`Rollback`** on any of the last 20 snapshots. |
+| **How do I inspect daemon logs quickly?** | Live logs stream into the docked terminal and `logs\mother-YYYYMMDD.jsonl`. | Press **`Ctrl+\``** to toggle the terminal drawer, or run `Mother.exe --diagnose` to inspect health & crash bundles. |
 
 ---
 
@@ -132,11 +132,9 @@ Right-clicking `Mother`'s Titanium Sky icon in the Windows system tray gives you
 
 | Term | Plain-English Definition |
 | :--- | :--- |
-| **Shared Suite Daemon (`Mother :5100`)** | The single master background coordinator and web gateway (`http://127.0.0.1:5100/`) that hosts and supervises all installed sister applications. |
-| **`Warm` Residency** | Keeps a sister app running in the background for instant `0ms` response when you click its tab. |
-| **`Cold` Residency (`Auto-Wake`)** | Keeps a sister app completely stopped (`0 MB` RAM) when idle, automatically waking it up when you click its tab, call its API, or when a scheduled task is due, and hibernating it 15 minutes after jobs finish. |
-| **Schedule Traffic Cop** | `Mother`'s disk I/O arbitrator (`FleetScheduleTrafficCop`) that checks `/api/v1/scheduler/status` and `.hklock` files so two apps never thrash the same hard drive at the same time. |
-| **Post-Run Power Coordinator** | The global `StayAwake / Sleep / Shutdown` controller in `Mother`'s top bar that waits until **all** installed sister apps finish their queues (+ 60s cancel toast) before sleeping or shutting down the PC. |
-| **4-Pillar Coexistence Broker** | `Mother`'s cross-app settings inspector (`FleetCoexistenceArbitrator`) that detects conflicting folder/archive rules across sister apps and aligns them with 1 click. |
-| **Orthogonal 2-Axis Shell** | `Mother`'s layout design where `Mother` owns the **Top Horizontal Bar** (`Alt+1..7` app tabs) and each sister app owns its **Left Vertical Sidebar Rail** (`Ctrl+B`), preventing double-tab clutter. |
-| **`\Mother_Watchdog`** | The single Windows Task Scheduler entry managed by `Mother` that keeps the suite alive and replaces individual per-app watchdogs. |
+| **Shared Suite Daemon (`Mother :5100`)** | The single master background coordinator and reverse-proxy gateway (`http://127.0.0.1:5100/`) supervising all installed sister apps. |
+| **`Warm` / `Cold` / `Disabled` Residency** | `Warm` keeps an app running for instant access; `Cold` keeps it at `0 MB` RAM and wakes it on demand; `Disabled` keeps it parked. |
+| **Traffic Cop & `.hklock`** | `ResourceTrafficCopService` + `HkLockScanner`, which inspect PID-safe `.hklock` files to prevent drive thrashing and purge dead-PID stale locks. |
+| **Post-Run Power Coordinator** | Central `StayAwake` / `Sleep` / `Shutdown` controller that inhibits OS sleep until all sister apps finish and runs a 60s cancellable countdown. |
+| **Coexistence Broker** | `FleetCoexistenceArbitrator`, which compares sister-app rules and `.coexistence.json` files and applies safe presets with **`Apply Safe-Stagger`**. |
+| **`\Mother_Watchdog`** | Single Windows Task Scheduler recovery task replacing per-app watchdogs across the suite. |

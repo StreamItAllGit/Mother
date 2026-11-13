@@ -1,0 +1,16 @@
+{
+  "name": "Mother — Personal Suite Supervisor",
+  "short_name": "Mother",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F17",
+  "theme_color": "#38BDF8",
+  "description": "Single shared suite daemon, Cold-Wake proxy, Resource Traffic Cop, and fleet watchdog.",
+  "icons": [
+    {
+      "src": "/api/v1/suite/qr.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

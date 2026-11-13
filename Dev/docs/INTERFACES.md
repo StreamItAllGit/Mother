@@ -1,6 +1,6 @@
 # Mother — Single-API Gateway Reference, Manifests & File Contracts (`INTERFACES.md`)
 
-> **Active Baseline Version:** `v0.1.0` (`v0.2.0` In-Dev) | **Full SemVer (`MAJOR.MINOR.PATCH`)** | **Owner:** `@devv` & `@tessa` ("The Manual Maker") | **Verified By:** `@dean` ([Standard 16 §3.5](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/16_PROJECT_DOSSIERS_AND_FEATURE_TRACKING.md))
+> **Active Baseline Version:** `v0.1.0` | **Full SemVer (`MAJOR.MINOR.PATCH`)** | **Owner:** `@devv` & `@tessa` ("The Manual Maker") | **Verified By:** `@dean` ([Standard 16 §3.5](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/16_PROJECT_DOSSIERS_AND_FEATURE_TRACKING.md))
 
 This reference manual documents the authentication and transport boundaries, the Single Public API Gateway (`/api/v1/suite/*` and `/api/v1/apps/<app-id>/*` on `:5100`), real-time SignalR/SSE streams, MCP/Agent proxy contracts, CLI subcommands and exit codes, file contracts (`suite.manifest.json` `v2`, `mother.manifest.json` `v1`, `.coexistence.json`, `.hklock`, `.hash`), SQLite/DTO schemas ([Standard 18](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/18_DATA_DICTIONARY_AND_SCHEMA_LOOKUP.md)), and sister-app compatibility rules for **`Mother`** ([`<WORKSPACE_ROOT>/Mother\`](file:///<WORKSPACE_ROOT>/Mother/)).
 
@@ -20,24 +20,31 @@ This reference manual documents the authentication and transport boundaries, the
 
 ## 2. REST API Reference `/api/v1/*` & Public C#/TS SDK Interfaces
 
-### 2.1 Suite-Level Gateway Endpoints (`/api/v1/suite/*` on Port `:5100` / Sandbox `:15100`)
-Per [Standard 17 §5.1](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/17_SISTER_COMPATIBILITY_AND_FEATURE_PARITY.md#L248-L260) and [`v0.1.0.2026-11-04.md#L109-L116`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/plans/v0.1.0.2026-11-04.md#L109-L116):
+### 2.1 Suite-Level Gateway Endpoints (`/api/v1/suite/*` & `/api/v1/terminal/*` on Port `:5100` / Sandbox `:15100`)
+Per [Standard 17 §5.1](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/17_SISTER_COMPATIBILITY_AND_FEATURE_PARITY.md#L248-L260) and [`v0.1.0.2026-11-12.md`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/plans/v0.1.0.2026-11-12.md):
 
 | HTTP Method & Route | Request Body (`camelCase`) | Response Payload (`camelCase` JSON) | Behavior & Description |
 | :--- | :--- | :--- | :--- |
-| `GET /api/v1/suite/health` | — | `{ "status": "ok", "suiteId": "mother", "version": "0.1.0", "sdkVersion": "0.1.0", "pid": 4120, "uptimeSeconds": 86400, "registeredApps": 6, "warmApps": 4, "coldApps": 2, "disabledApps": 0 }` | Suite daemon liveness, version, and residency summary. |
-| `GET /api/v1/suite/apps` | — | `{ "apps": [{ "appId": "housekeeping", "name": "Housekeeping", "version": "1.0.0-rc.12", "brandAccent": "#f59e0b", "internalPort": 5178, "residency": "warm", "state": "idle", "activeJobs": 0, "queuedJobs": 0, "uiUrl": "/app/housekeeping/" }] }` | Lists all installed sister apps discovered in `manifests\*.manifest.json` with live status and job counts. |
-| `POST /api/v1/suite/apps/reload` | `{}` | `{ "reloaded": true, "discoveredCount": 6, "apps": [...] }` | Hot-reloads `manifests\*.manifest.json` after an installer adds, upgrades, or removes a sister app. |
-| `POST /api/v1/suite/apps/<app-id>/residency` | `{ "residency": "warm\|cold\|disabled", "idleTimeoutMinutes": 15 }` | `{ "appId": "<app-id>", "residency": "cold", "state": "stopped" }` | Updates per-app residency in `data\settings.json` and immediately starts or hibernates the child worker. |
-| `POST /api/v1/suite/apps/<app-id>/wake` | `{}` | `{ "appId": "<app-id>", "woken": true, "pid": 15240, "startupMs": 420 }` | Wakes a `cold` sister app, polls its internal `/api/v1/health` at `250ms` intervals until `200 OK`, and returns. |
-| `POST /api/v1/suite/apps/<app-id>/stop` | `{ "gracefulTimeoutMs": 5000 }` | `{ "appId": "<app-id>", "stopped": true }` | Drains (`5s`) and stops a specific child worker (used during sister-app upgrade or uninstall). |
-| `POST /api/v1/suite/jobs/stop-all` | `{ "reason": "User Fleet Emergency Stop" }` | `{ "stoppedApps": ["housekeeping", "shadowlibrary"], "totalCancelledJobs": 3 }` | Broadcasts `POST /api/v1/jobs/stop-all` to all running sister apps. |
-| `POST /api/v1/suite/power/action` | `{ "postRunPowerAction": "StayAwake\|Sleep\|Shutdown" }` | `{ "postRunPowerAction": "Sleep", "fleetBusy": true, "countdownActive": false }` | Sets the global Post-Run Power Coordinator target (`FleetPowerCoordinator`). |
-| `POST /api/v1/suite/power/cancel-countdown` | `{}` | `{ "cancelled": true, "postRunPowerAction": "StayAwake" }` | Aborts an active 60-second pre-Sleep/Shutdown countdown toast and resets to `StayAwake`. |
-| `GET /api/v1/suite/scheduler/traffic-cop` | — | `{ "activeLocks": [...], "recentDeferrals": [{ "appId": "housekeeping", "scheduleId": "nightly", "drive": "E:", "deferredMinutes": 30, "reason": "Held by shadowlibrary (.hklock)" }] }` | Returns live drive mutex locks and recent schedule deferral decisions from `FleetScheduleTrafficCop`. |
-| `GET /api/v1/suite/coexistence/status` | *(Alias: `GET /api/v1/coexistence/status`)* | `{ "autoAlignWithSisterApps": false, "sharedRoots": [...], "conflicts": [...], "apps": [...] }` | Aggregates `/api/v1/coexistence/status` across running apps and `<Root>\.coexistence.json` for offline apps (`FleetCoexistenceArbitrator`). |
-| `POST /api/v1/suite/coexistence/apply-recommendations` | `{ "targetAppIds": ["housekeeping", "shadowlibrary"], "presetId": "zero-rewrite-parity" }` | `{ "applied": true, "updatedApps": ["housekeeping", "shadowlibrary"] }` | Dispatches 1-click preset alignment to child apps and updates `<Root>\.coexistence.json`. |
-| `POST /api/v1/suite/doctor/run` | `{}` | `{ "overall": "pass\|warn\|fail", "suiteChecks": [...], "appReports": { "housekeeping": {...} } }` | Executes `🩺 Fleet System Doctor` across `Mother` and all installed sister apps. |
+| `GET /api/v1/suite/health` *(Alias: `/api/v1/health`)* | — | `{ "status": "ok", "suiteId": "mother", "version": "0.1.0", "sdkVersion": "0.3.0", "pid": 4120, "uptimeSeconds": 120, "testMode": false, "sqliteUserVersion": 1, "registeredApps": 6, "warmApps": 3, "coldApps": 3, "disabledApps": 0 }` | Suite daemon liveness, version, SQLite schema version, and residency summary. |
+| `GET /api/v1/suite/manifest` *(Alias: `/api/v1/manifest`)* | — | `{ "schemaVersion": 2, "appId": "mother", "name": "Mother", "version": "0.1.0", "sdkVersion": "0.3.0", "brandAccent": "#38bdf8", "port": 5100, "testMode": false, "capabilities": [...], "registeredAppIds": [...] }` | Exposes Mother's suite capability manifest and registered app IDs. |
+| `GET /api/v1/suite/apps` | — | `{ "suiteId": "mother", "testMode": false, "apps": [{ "appId": "housekeeping", "name": "HouseKeeping", "version": "1.0.0", "brandAccent": "#f59e0b", "effectivePort": 5178, "residency": "warm", "state": "stopped", "isOnline": false, "activeJobs": 0, "queuedJobs": 0 }] }` | Lists all installed sister apps discovered in `manifests\*.json` with live status and job counts. |
+| `POST /api/v1/suite/apps/reload` | `{}` | `{ "reloadedCount": 6, "apps": [...] }` | Hot-reloads `manifests\*.json` after an installer adds, upgrades, or removes a sister app. |
+| `POST /api/v1/suite/apps/{appId}/residency` | `{ "residencyMode": "warm\|cold\|disabled" }` | `{ "app": {...} }` | Updates per-app residency in `data\settings.json` and reconciles child worker lifecycle. |
+| `POST /api/v1/suite/apps/{appId}/wake` | `{}` | `{ "outcome": {...}, "app": {...} }` | Arbitrates coexistence and wakes a `cold` sister app (`409` on conflict, `503` on startup timeout). |
+| `POST /api/v1/suite/apps/{appId}/stop` | `{}` | `{ "appId": "<appId>", "stopped": true, "app": {...} }` | Gracefully stops (`5s` drain) a specific child worker. |
+| `POST /api/v1/suite/jobs/stop-all` | `{}` | `{ "stoppedApps": [...], "power": {...} }` | Stops all running child jobs/workers and cancels any active power countdown. |
+| `GET /api/v1/suite/scheduler/traffic-cop` | — | `{ "activeLocks": [...], "recentDeferrals": [...] }` | Returns live/stale `.hklock` holds and recent schedule deferrals (`POST` also supported to record a deferral). |
+| `GET /api/v1/suite/traffic-cop/locks` & `POST .../purge-stale` | `{}` | `{ "locks": [...], "purgedCount": 1 }` | Lists scanned `.hklock` sentinels or safely purges dead-PID `stale` sentinels. |
+| `GET /api/v1/suite/coexistence/status` *(Alias: `/api/v1/coexistence/status`)* | — | `{ "autoAlignWithSisterApps": false, "sharedRoots": [...], "conflicts": [...], "apps": [...] }` | Aggregates coexistence status, shared roots, and conflicts (`.../conflicts`, `.../deferrals`, `.../arbitrate` also exposed). |
+| `POST /api/v1/suite/coexistence/apply-recommendations` | `{ "targetAppIds": [...], "presetId": "suite-safe-stagger", "sharedRoots": [...] }` | `{ "appliedPreset": "...", "updatedApps": [...], "status": {...} }` | Applies non-conflicting presets and persists `<SharedRoot>\.coexistence.json`. |
+| `GET /api/v1/suite/power/status` | — | `{ "policy": "StayAwake", "fleetBusy": false, "sleepInhibited": false, "watchdogRegistered": true, "countdownActive": false, "secondsRemaining": 0 }` | Returns Post-Run Power Coordinator and `\Mother_Watchdog` status. |
+| `POST /api/v1/suite/power/action` & `POST .../cancel-countdown` | `{ "policy": "StayAwake\|Sleep\|Shutdown" }` or `{ "action": "cancel\|evaluate" }` | `{ "policy": "...", "countdownActive": ... }` | Sets power policy, evaluates fleet idle tick, or cancels active 60s countdown. |
+| `GET /api/v1/suite/doctor` & `POST /api/v1/suite/doctor/run` | `{}` | `{ "overall": "pass\|warn\|fail", "suiteChecks": [...], "crashBundleCount": 0 }` | Runs `🩺 Fleet System Doctor` checks (`.../repair`, `.../backup-dbs`, `.../export-bundle` also exposed). |
+| `GET /api/v1/suite/notifications` & `POST .../test` | `{ "appId": "...", "slug": "...", "title": "...", "description": "..." }` | `{ "notifications": [...] }` / `{ "notification": {...} }` | Queries persisted alert history (`notification_history`) or sends a test alert. |
+| `GET /api/v1/suite/secrets/metadata` | — | `{ "keys": [{ "keyName": "...", "valueByteLength": 64, "updatedAtUtc": "..." }] }` | Returns DPAPI secret key names and lengths only (never decrypted plaintext). |
+| `GET/PUT /api/v1/suite/settings`, `.../snapshots`, `.../rollback`, `.../export` | `MotherSettings` / `{ "snapshotId": "..." }` | `{ "settings": {...}, "snapshots": [...] }` | Reads/saves `data\settings.json` (`20`-snapshot rollback ring buffer & JSON export). |
+| `GET /api/v1/terminal/history`, `POST .../exec`, `POST .../clear`, `GET .../stream` | `{ "command": "health\|apps\|doctor\|locks\|help" }` | `{ "lines": [...] }` / `{ "exitCode": 0, "output": "..." }` | Powers the docked `Ctrl+\`` `foundation-terminal` drawer and whitelisted diagnostics. |
+| `GET /api/v1/suite/qr.svg` | — | `image/svg+xml` | Generates an offline SVG QR code for Tailscale mobile pairing. |
 
 ### 2.2 Reverse-Proxy Gateway Routes (`/api/v1/apps/<app-id>/*` & `/app/<app-id>/*`)
 Every HTTP/WebSocket request arriving at `Mother` (`:5100`) under `/api/v1/apps/<app-id>/<subpath>` or `/app/<app-id>/<asset>` is reverse-proxied to `http://127.0.0.1:<internalPort>/api/v1/<subpath>` (automatically waking the child app first if its residency is `cold` and `wakeOnApiRequest` / `wakeOnUiNavigation` is `true`).
@@ -58,14 +65,17 @@ Each child sister app implements these standardized routes (polled by `Mother` a
 
 ## 3. SignalR / SSE / Event Bus Contracts
 
-`Mother` exposes a unified Server-Sent Events (SSE) / WebSocket stream at `GET /api/v1/suite/events` (and proxies child `/app/<app-id>/events` streams) powering the outer tab status dots and the `Ctrl+\`` Unified Log Drawer:
+`Mother` exposes a unified Server-Sent Events (SSE) stream at `GET /api/v1/suite/events` powering the outer tab status dots, live views, and `Ctrl+\`` Unified Log Drawer:
 
 | Event Name (`event:`) | JSON Payload (`data:`) | Trigger Condition |
 | :--- | :--- | :--- |
-| `suite.app.stateChanged` | `{ "appId": "redroom", "residency": "cold", "state": "starting\|idle\|busy\|error", "activeJobs": 1, "progressPercent": 45.0 }` | Emitted whenever a child app starts, wakes, hibernates, changes job state, or trips the crash-loop circuit breaker. |
-| `suite.log.line` | `{ "timestampUtc": "2026-11-04T18:00:00.000Z", "appId": "shadowlibrary", "level": "INFO", "slice": "BitRotScrub", "message": "[HEARTBEAT] ..." }` | Streams real-time lines from `Mother`'s logger and each child process's 50-line stdout/stderr ring buffer into the `Ctrl+\`` drawer. |
-| `suite.schedule.deferred` | `{ "appId": "housekeeping", "scheduleId": "nightly", "drive": "E:", "blockingAppId": "shadowlibrary", "deferredMinutes": 30 }` | Emitted when `FleetScheduleTrafficCop` defers a colliding drive schedule. |
-| `suite.power.countdown` | `{ "action": "Sleep\|Shutdown", "secondsRemaining": 60, "cancellable": true }` | Emitted every second during the 60-second post-run power countdown. |
+| `heartbeat` | `{ "tsUtc": "2026-11-12T18:00:00.000Z", "uptimeSeconds": 120 }` | Initial connect and 10-second liveness heartbeat. |
+| `app_status` | `SisterAppRuntimeDto` (`appId`, `state`, `residency`, `isOnline`, `activeJobs`) | Emitted whenever a child app starts, wakes, hibernates, changes state, or trips the circuit breaker. |
+| `lock_changed` | `{ "locks": [...] }` | Emitted when `.hklock` scans detect changes or stale locks are purged. |
+| `conflict_changed` | `CoexistenceStatusDto` | Emitted when coexistence conflict status updates. |
+| `power_countdown` | `PowerStatusDto` (`policy`, `countdownActive`, `secondsRemaining`) | Emitted during the 60-second cancellable post-run power countdown. |
+| `log_line` | `{ "seq": 1, "timestampUtc": "2026-11-12T18:00:00.000Z", "level": "INFO", "source": "...", "message": "[HEARTBEAT] ..." }` | Streams real-time lines into the `Ctrl+\`` `foundation-terminal` drawer. |
+| `alert_raised` | `NotificationHistoryRecord` | Emitted when `NotificationDispatcher` records a fleet alert. |
 
 ---
 
@@ -84,16 +94,19 @@ Per [Standard 17 §7.3](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/17_SISTER_COMPATIBI
 ### 5.1 CLI Invocation Patterns
 ```powershell
 # 1. Start Mother in normal Single-Window Suite Shell mode (or bring existing window to front)
-<PROGRAMS_ROOT>/Mother\Mother.exe [--suite-tab <app-id>]
+Mother.exe [--suite-tab <app-id>] [--tray-only | --minimized]
 
 # 2. Pop out a specific sister app into its own standalone desktop window
-<PROGRAMS_ROOT>/Mother\Mother.exe --window housekeeping
+Mother.exe --window housekeeping
 
 # 3. Open Mother or a specific sister app in the default web browser
-<PROGRAMS_ROOT>/Mother\Mother.exe --browser greenroom
+Mother.exe --browser greenroom
 
 # 4. Run deterministic headless self-test in Sandbox (exits 0 on pass)
-<WORKSPACE_ROOT>/Mother\Sandbox\Mother.exe --test-mode --headless --programs-dir .\data\mock_programs --data-dir .\data --log-dir .\logs --port 15100
+Mother.exe --test-mode --headless --data-dir "<WORKSPACE_ROOT>/Mother\Sandbox\data" --log-dir "<WORKSPACE_ROOT>/Mother\Sandbox\logs" [--port 15100] [--diagnose]
+
+# 5. Installer Sandbox lifecycle (--test-mode + --install-dir auto-contains --data-dir to <dir> if omitted)
+Mother-Setup-v0.1.0-win-x64.exe --test-mode --silent --install-dir "<WORKSPACE_ROOT>/Mother\Sandbox\installer-test"
 ```
 
 ### 5.2 Deterministic Exit-Code Taxonomy (`STD-03`)
@@ -118,12 +131,12 @@ Placed at `<SisterApp>\app\suite.manifest.json` and registered at `<PROGRAMS_ROO
   "suiteId": "mother",
   "suiteName": "Mother",
   "minSuiteVersion": "0.1.0",
-  "sdkVersion": "0.1.0",
+  "sdkVersion": "0.3.0",
   "suitePort": 5100,
   "appId": "housekeeping",
-  "name": "Housekeeping",
-  "shortName": "Housekeeping",
-  "version": "1.0.0-rc.12",
+  "name": "HouseKeeping",
+  "shortName": "HouseKeeping",
+  "version": "1.0.0",
   "brandAccent": "#f59e0b",
   "installDir": "D:\\Programs\\Housekeeping",
   "executable": "app\\Housekeeping.Server.exe",
@@ -158,7 +171,7 @@ Placed at `<SisterApp>\app\suite.manifest.json` and registered at `<PROGRAMS_ROO
 ```
 
 ### 6.2 Dual-Schema Tolerance for Legacy `mother.manifest.json` (`v1` — [`1715` Report §5.1](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/reports/archive/v0.1.0-alpha.1.2026-11-03_1715.-.fleet-coexistence-broker-and-manifest-schema.md#L59-L60))
-`AppDiscoveryService` also parses legacy `v1` manifests by normalizing:
+`ManifestRegistryService` also parses legacy `v1` manifests by normalizing:
 - `appId`: `appId ?? id ?? app_id`
 - `name`: `name ?? display_name`
 - `brandAccent`: `brandAccent ?? brand_accent ?? brand_color`
@@ -170,16 +183,16 @@ Placed at `<SisterApp>\app\suite.manifest.json` and registered at `<PROGRAMS_ROO
 {
   "schemaVersion": 1,
   "rootPath": "E:\\Vault",
-  "updatedAtUtc": "2026-11-04T18:00:00.000Z",
+  "updatedAtUtc": "2026-11-12T18:00:00.000Z",
   "registeredApps": {
     "shadowlibrary": {
-      "version": "1.0.0-rc.14",
+      "version": "0.1.25",
       "archiveFormat": "7z",
       "verifySidecarHash": true,
       "zeroRewriteCoAudit": true
     },
     "housekeeping": {
-      "version": "1.0.0-rc.12",
+      "version": "1.0.0",
       "archiveFormat": "7z",
       "verifySidecarHash": true,
       "respectSisterHashSidecars": true
@@ -189,43 +202,75 @@ Placed at `<SisterApp>\app\suite.manifest.json` and registered at `<PROGRAMS_ROO
 ```
 
 ### 6.4 Distributed Directory Lock (`.hklock`) & Universal `.hash` Sidecar
-- **`.hklock` (`<TargetDir>\.<app-id>_<pid>.hklock`):** Uses `Foundation.Core.PidSafeLockEnvelope` (`schemaVersion: 1`, `appId`, `pid`, `processStartTimeUtc`, `hostName`, `operation`, `acquiredAtUtc`, `heartbeatAtUtc`, `expiresAtUtc`). Inspected by `FleetScheduleTrafficCop` before allowing any scheduled task to run on that drive.
-- **`.hash` Sidecar (`# Container:` header):** Verified across `ShadowLibrary`, `Housekeeping`, `Redroom`, and `legacy-sister-app` (`# Format: Universal Sister-App Hash Sidecar v1`, `# Container: size=... crc32=... sha256=... mtimeUtc=...`).
+- **`.hklock` (`<TargetDir>\.<app-id>_<pid>.hklock`):** Uses `Foundation.Core.PidSafeLockEnvelope` (`schemaVersion: 1`, `appId`, `pid`, `processStartTimeUtc`, `hostName`, `operation`, `acquiredAtUtc`, `heartbeatAtUtc`, `expiresAtUtc`). Inspected by `ResourceTrafficCopService` + `HkLockScanner` before allowing any scheduled task to run on that drive.
+- **`.hash` Sidecar (`# Container:` header):** Verified across `ShadowLibrary`, `HouseKeeping`, `RedRoom`, and `legacy-sister-app` (`# Format: Universal Sister-App Hash Sidecar v1`, `# Container: size=... crc32=... sha256=... mtimeUtc=...`).
 
 ---
 
-## 7. SQLite / JSON / DTO Schema Reference (`data\mother.db` — [Standard 18](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/18_DATA_DICTIONARY_AND_SCHEMA_LOOKUP.md))
+## 7. SQLite / JSON / DTO Schema Reference (`data\mother.db`, `PRAGMA user_version = 1` — [Standard 18 §3](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/18_DATA_DICTIONARY_AND_SCHEMA_LOOKUP.md))
 
-All SQLite tables in `<PROGRAMS_ROOT>/Mother\data\mother.db` use `snake_case` SQL columns mapped to `camelCase` JSON keys per [Standard 18](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/18_DATA_DICTIONARY_AND_SCHEMA_LOOKUP.md):
+All SQLite tables in `data\mother.db` (defined in `Dev\migrations\0001_initial_schema.sql` and tracked exclusively via `PRAGMA user_version = 1`) use strictly pre-registered Standard 18 §3 `snake_case` SQL columns mapped 1:1 to `camelCase` JSON keys (locked by `MotherDbAndWireLockstepTests` + `wwwroot\js\api\contracts.js`):
 
 ### 7.1 Table `fleet_health_events`
 | SQL Column (`snake_case`) | JSON Key (`camelCase`) | SQLite Type | Description |
 | :--- | :--- | :--- | :--- |
-| `id` | `id` | `INTEGER PRIMARY KEY` | Auto-increment event row ID. |
+| `id` | `id` | `TEXT PRIMARY KEY NOT NULL` | Deterministic/UUID event row ID. |
+| `suite_id` | `suiteId` | `TEXT NOT NULL` | Suite identifier (`"mother"`). |
 | `app_id` | `appId` | `TEXT NOT NULL` | Canonical sister app slug (`housekeeping`, `shadowlibrary`, etc.). |
-| `event_type` | `eventType` | `TEXT NOT NULL` | `"started"`, `"woken"`, `"hibernated"`, `"crashed"`, `"circuit_breaker_tripped"`. |
+| `status` | `status` | `TEXT NOT NULL` | Health/lifecycle status (`"online"`, `"stopped"`, `"crashed"`, `"woken"`). |
+| `residency_mode` | `residencyMode` | `TEXT NOT NULL DEFAULT 'warm'` | `"warm"`, `"cold"`, or `"disabled"`. |
 | `pid` | `pid` | `INTEGER` | OS process ID at time of event. |
-| `details_json` | `detailsJson` | `TEXT` | Additional diagnostic context. |
-| `created_at_utc` | `createdAtUtc` | `TEXT NOT NULL` | ISO-8601 UTC timestamp (`YYYY-MM-DDTHH:mm:ss.fffZ`). |
+| `process_start_time_utc` | `processStartTimeUtc` | `TEXT` | Process start timestamp (`YYYY-MM-DDTHH:mm:ss.fffZ`). |
+| `exit_code` | `exitCode` | `INTEGER` | Child process exit code (if terminated). |
+| `retry_count` | `retryCount` | `INTEGER NOT NULL DEFAULT 0` | Restart attempts inside circuit-breaker window. |
+| `is_online` | `isOnline` | `INTEGER NOT NULL DEFAULT 0 CHECK (is_online IN (0, 1))` | Boolean flag (`0` or `1`). |
+| `has_active_conflicts` | `hasActiveConflicts` | `INTEGER NOT NULL DEFAULT 0 CHECK (has_active_conflicts IN (0, 1))` | Boolean conflict flag (`0` or `1`). |
+| `error_code` | `errorCode` | `TEXT` | Structured error code (optional). |
+| `error_message` | `errorMessage` | `TEXT` | Error description (optional). |
+| `error_remedy` | `errorRemedy` | `TEXT` | Suggested operator action (optional). |
+| `metadata_json` | `metadataJson` | `TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata_json))` | Validated JSON context object. |
+| `created_at_utc` | `createdAtUtc` | `TEXT NOT NULL` | ISO-8601 UTC millisecond timestamp (`YYYY-MM-DDTHH:mm:ss.fffZ`). |
 
 ### 7.2 Table `schedule_deferrals`
 | SQL Column (`snake_case`) | JSON Key (`camelCase`) | SQLite Type | Description |
 | :--- | :--- | :--- | :--- |
-| `id` | `id` | `INTEGER PRIMARY KEY` | Auto-increment deferral record ID. |
-| `deferred_app_id` | `deferredAppId` | `TEXT NOT NULL` | Sister app whose scheduled job was deferred. |
-| `schedule_id` | `scheduleId` | `TEXT NOT NULL` | Schedule identifier from `suite.manifest.json`. |
-| `blocking_app_id` | `blockingAppId` | `TEXT NOT NULL` | Sister app holding the active job or `.hklock` on the target drive. |
-| `target_drive` | `targetDrive` | `TEXT NOT NULL` | Contended drive mount (e.g. `"E:"`). |
-| `deferred_minutes` | `deferredMinutes` | `INTEGER NOT NULL` | Minutes deferred (`30` default). |
-| `reason` | `reason` | `TEXT NOT NULL` | Human-readable arbitration reason (`Suite Drive I/O Mutex`). |
-| `created_at_utc` | `createdAtUtc` | `TEXT NOT NULL` | ISO-8601 UTC timestamp. |
+| `id` | `id` | `TEXT PRIMARY KEY NOT NULL` | Deferral record ID. |
+| `suite_id` | `suiteId` | `TEXT NOT NULL` | Suite identifier (`"mother"`). |
+| `app_id` | `appId` | `TEXT NOT NULL` | Sister app whose scheduled job was deferred. |
+| `job_id` | `jobId` | `TEXT NOT NULL` | Schedule / job identifier. |
+| `drive_mount` | `driveMount` | `TEXT NOT NULL` | Contended drive mount or root path. |
+| `duration_ms` | `durationMs` | `INTEGER NOT NULL DEFAULT 0` | Deferral duration in milliseconds. |
+| `description` | `description` | `TEXT` | Human-readable arbitration reason (`Suite Drive I/O Mutex`). |
+| `status` | `status` | `TEXT NOT NULL` | Deferral state (`"deferred"`, `"resolved"`). |
+| `is_dry_run` | `isDryRun` | `INTEGER NOT NULL DEFAULT 0 CHECK (is_dry_run IN (0, 1))` | Sandbox/dry-run indicator (`0` or `1`). |
+| `next_run_at_utc` | `nextRunAtUtc` | `TEXT` | Deferred target execution timestamp (`YYYY-MM-DDTHH:mm:ss.fffZ`). |
+| `metadata_json` | `metadataJson` | `TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata_json))` | Validated JSON metadata (`blockingAppId`, `lockFilePath`). |
+| `created_at_utc` | `createdAtUtc` | `TEXT NOT NULL` | ISO-8601 UTC millisecond timestamp. |
+
+### 7.3 Table `notification_history`
+| SQL Column (`snake_case`) | JSON Key (`camelCase`) | SQLite Type | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `id` | `TEXT PRIMARY KEY NOT NULL` | Alert record ID. |
+| `suite_id` | `suiteId` | `TEXT NOT NULL` | Suite identifier (`"mother"`). |
+| `app_id` | `appId` | `TEXT NOT NULL` | Originating app ID. |
+| `slug` | `slug` | `TEXT NOT NULL` | Canonical alert slug (e.g. `doctor-test-alert`). |
+| `title` | `title` | `TEXT NOT NULL` | Alert title. |
+| `description` | `description` | `TEXT` | Redacted summary description. |
+| `status` | `status` | `TEXT NOT NULL` | Delivery state (`"sent"`, `"simulated"`, `"failed"`). |
+| `retry_count` | `retryCount` | `INTEGER NOT NULL DEFAULT 0` | Delivery retry count. |
+| `is_dry_run` | `isDryRun` | `INTEGER NOT NULL DEFAULT 0 CHECK (is_dry_run IN (0, 1))` | Simulated/dry-run indicator (`0` or `1`). |
+| `error_code` | `errorCode` | `TEXT` | Failure code (if any). |
+| `error_message` | `errorMessage` | `TEXT` | Failure message (if any). |
+| `metadata_json` | `metadataJson` | `TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata_json))` | Redacted JSON metadata. |
+| `created_at_utc` | `createdAtUtc` | `TEXT NOT NULL` | ISO-8601 UTC millisecond timestamp. |
+| `completed_at_utc` | `completedAtUtc` | `TEXT` | Delivery completion UTC millisecond timestamp. |
 
 ---
 
 ## 8. Backward Compatibility & Sister-App Integration Notes
 
 1. **Full SemVer Interoperability (`v0.1.0` $\rightarrow$ `v0.2.0` $\rightarrow$ `v1.0.0`):**
-   - `Mother` uses strict 3-part SemVer without `-rc.<n>` suffixes so any sister app's installer or runtime can compare `minSuiteVersion` (`"0.1.0"`) using simple 3-integer tuple comparison.
+   - `Mother` uses strict 3-part SemVer without pre-release suffixes so any sister app's installer or runtime can compare `minSuiteVersion` (`"0.1.0"`) using simple 3-integer tuple comparison.
 2. **Graceful Partial-Suite Operation:**
    - `Mother` never assumes all 6 sister apps are installed. If `manifests\` contains 0, 1, or 3 manifests, all endpoints (`/api/v1/suite/apps`, `/api/v1/suite/coexistence/status`, `/api/v1/suite/doctor/run`) and UI tabs scale dynamically to the installed set.
 3. **Dual Route & Manifest Tolerance:**

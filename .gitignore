@@ -45,11 +45,10 @@ __pycache__/
 *.csproj
 *.unityproj
 *.sln
-!Dev/src/**/*.csproj
-!Dev/tests/**/*.csproj
-!Dev/Launcher/**/*.csproj
-!Dev/Installer/**/*.csproj
+*.slnx
+!Dev/**/*.csproj
 !Dev/*.sln
+!Dev/*.slnx
 
 # ==============================================================================
 # 5. Runtime Databases, Secrets, Logs & Large Raw Media Captures
