@@ -98,7 +98,7 @@ public sealed class PathResolverAndSettingsTests
         using var runtime = scope.CreateRuntime();
 
         var payload = runtime.Settings.Export(runtime.Version);
-        Assert.Equal("0.1.0", payload.Version);
+        Assert.Equal("0.2.0", payload.Version);
         Assert.Equal(1, payload.Settings.SchemaVersion);
         Assert.False(string.IsNullOrWhiteSpace(payload.ExportedAtUtc));
     }

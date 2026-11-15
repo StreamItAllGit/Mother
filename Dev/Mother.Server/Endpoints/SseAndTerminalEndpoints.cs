@@ -149,43 +149,10 @@ public static class SseAndTerminalEndpoints
         app.MapPost("/api/v1/terminal/exec", async (TerminalExecRequest body, HttpContext ctx) =>
         {
             string raw = (body.Command ?? string.Empty).Trim();
-            string cmd = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.ToLowerInvariant() ?? string.Empty;
-            string output = await ExecuteWhitelistedCommandAsync(runtime, cmd, ctx.RequestAborted);
-            runtime.Diagnostics.Log("INFO", "mother", "Terminal", $"> {raw}\n{output}");
-            return Results.Ok(new { command = raw, accepted = !string.IsNullOrEmpty(output), output });
+            TerminalDispatchResult result = await TerminalCommandDispatcher.ExecuteAsync(runtime, raw, ctx.RequestAborted);
+            runtime.Diagnostics.Log("INFO", "mother", "Terminal", $"> {raw}\n{result.Output}");
+            return Results.Ok(new { command = raw, accepted = result.Accepted, output = result.Output });
         });
-    }
-
-    private static async Task<string> ExecuteWhitelistedCommandAsync(MotherRuntime runtime, string cmd, CancellationToken ct)
-    {
-        switch (cmd)
-        {
-            case "help":
-                return "Allowed commands: help, health, apps, doctor, locks, purge-stale, coexistence, power";
-            case "health":
-                return JsonSerializer.Serialize(runtime.GetSuiteHealth());
-            case "apps":
-                return string.Join(", ", runtime.Supervisor.GetSnapshots().Select(a => $"{a.AppId}:{a.State}({a.Residency})"));
-            case "doctor":
-                var doc = runtime.RunDoctor();
-                return $"Doctor={doc.Overall}, checks={doc.SuiteChecks.Count}, crashes={doc.CrashBundleCount}";
-            case "locks":
-                var locks = runtime.TrafficCop.GetCurrentLocks(runtime.Manifests.GetAll());
-                return $"Locks={locks.Count} ({locks.Count(l => l.Status == "live")} live, {locks.Count(l => l.Status == "stale")} stale)";
-            case "purge-stale":
-                int purged = await runtime.TrafficCop.PurgeStaleLocksAsync(runtime.Manifests.GetAll(), ct);
-                return $"Purged {purged} stale .hklock files.";
-            case "coexistence":
-                var coex = runtime.Coexistence.Evaluate(
-                    runtime.Supervisor.GetSnapshots(),
-                    runtime.TrafficCop.GetCurrentLocks(runtime.Manifests.GetAll()));
-                return $"Conflicts={coex.Conflicts.Count}, SharedRoots={coex.SharedRoots.Count}";
-            case "power":
-                var pwr = runtime.Power.GetStatus(runtime.Watchdog.IsRegistered());
-                return $"Policy={pwr.Policy}, Busy={pwr.FleetBusy}, Countdown={(pwr.CountdownActive ? pwr.SecondsRemaining + "s" : "off")}";
-            default:
-                return $"Unknown command '{cmd}'. Type 'help' for allowed read-only suite commands.";
-        }
     }
 
     private static async Task WriteSseAsync(HttpContext ctx, string eventName, object payload, CancellationToken ct)

@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Win32;
 using Mother.Core.Configuration;
 using Mother.Core.Contracts;
 using Mother.Core.Diagnostics;
@@ -125,15 +126,17 @@ public sealed class ManifestRegistryService
             }
         }
 
-        var roots = new List<string>();
-        if (Directory.Exists(_paths.ProgramsRoot)) roots.Add(_paths.ProgramsRoot);
+        var peerDirs = new List<string>();
+        var scanRoots = new List<string>();
+        if (Directory.Exists(_paths.ProgramsRoot)) scanRoots.Add(_paths.ProgramsRoot);
+
         foreach (string custom in cfg.CustomManifestRoots)
         {
             if (string.IsNullOrWhiteSpace(custom)) continue;
             try
             {
                 string resolved = _paths.AssertContainedIfSandbox(custom.Trim());
-                if (Directory.Exists(resolved)) roots.Add(resolved);
+                if (Directory.Exists(resolved)) scanRoots.Add(resolved);
             }
             catch
             {
@@ -141,24 +144,72 @@ public sealed class ManifestRegistryService
             }
         }
 
-        foreach (string root in roots)
+        if (!_paths.Sandbox.IsContainedSandbox)
+        {
+            AddHostAppDiscoveryPaths(peerDirs, scanRoots);
+        }
+
+        foreach (string dir in peerDirs)
+        {
+            foreach (string candidate in YieldManifestCandidates(dir))
+            {
+                if (seen.Add(Path.GetFullPath(candidate))) yield return candidate;
+            }
+        }
+
+        foreach (string root in scanRoots)
         {
             foreach (string dir in Directory.EnumerateDirectories(root))
             {
-                foreach (string candidate in new[]
+                foreach (string candidate in YieldManifestCandidates(dir))
                 {
-                    Path.Combine(dir, "suite.manifest.json"),
-                    Path.Combine(dir, "mother.manifest.json"),
-                    Path.Combine(dir, "app", "suite.manifest.json"),
-                    Path.Combine(dir, "app", "mother.manifest.json")
-                })
+                    if (seen.Add(Path.GetFullPath(candidate))) yield return candidate;
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<string> YieldManifestCandidates(string dir)
+    {
+        string[] names =
+        {
+            Path.Combine(dir, "suite.manifest.json"),
+            Path.Combine(dir, "mother.manifest.json"),
+            Path.Combine(dir, "app", "suite.manifest.json"),
+            Path.Combine(dir, "app", "mother.manifest.json")
+        };
+        foreach (string candidate in names)
+        {
+            if (File.Exists(candidate)) yield return candidate;
+        }
+    }
+
+    private static void AddHostAppDiscoveryPaths(List<string> peerDirs, List<string> scanRoots)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            using RegistryKey? appsKey = Registry.CurrentUser.OpenSubKey(@"Software\StreamItAll\Mother\Apps");
+            if (appsKey is not null)
+            {
+                foreach (string sub in appsKey.GetSubKeyNames())
                 {
-                    if (File.Exists(candidate) && seen.Add(Path.GetFullPath(candidate)))
+                    using RegistryKey? appKey = appsKey.OpenSubKey(sub);
+                    string? dir = appKey?.GetValue("InstallDir") as string;
+                    if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
                     {
-                        yield return candidate;
+                        peerDirs.Add(Path.GetFullPath(dir));
                     }
                 }
             }
+        }
+
+        string? sysRoot = Path.GetPathRoot(Environment.SystemDirectory);
+        foreach (DriveInfo drive in DriveInfo.GetDrives())
+        {
+            if (!drive.IsReady || drive.DriveType != DriveType.Fixed) continue;
+            if (string.Equals(drive.RootDirectory.FullName, sysRoot, StringComparison.OrdinalIgnoreCase)) continue;
+            string legacyPrograms = Path.Combine(drive.RootDirectory.FullName, "Programs");
+            if (Directory.Exists(legacyPrograms)) scanRoots.Add(legacyPrograms);
         }
     }
 }

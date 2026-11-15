@@ -1,40 +1,44 @@
 // @module: Mother.Installer.Program
-// @purpose: Single-EXE 4-pillar Setup Wizard loading GZip-compressed Foundation assemblies and delegating lifecycle to StandardInstallerHost.
-// @depends-on: System, System.IO, System.IO.Compression, System.Reflection, System.Runtime.CompilerServices, Foundation.Installer
+// @purpose: Single-EXE 4-pillar Setup Wizard loading GZip-compressed Foundation assemblies and delegating lifecycle to MotherInstallerRunner.
+// @depends-on: System, System.Collections.Concurrent, System.Collections.Generic, System.IO, System.IO.Compression, System.Linq, System.Reflection, System.Runtime.CompilerServices, System.Runtime.Loader, System.Threading
 // @exports: Program
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 using System.Threading;
-using Foundation.Installer;
 
 namespace Mother.Installer;
 
 public static class Program
 {
+    private static readonly ConcurrentDictionary<string, Assembly> LoadedFoundationAssemblies = new(StringComparer.OrdinalIgnoreCase);
+
     static Program()
     {
-        AppDomain.CurrentDomain.AssemblyResolve += (_, e) =>
+        AssemblyLoadContext.Default.Resolving += (_, name) => LoadEmbeddedFoundationAssembly(name.Name);
+        AppDomain.CurrentDomain.AssemblyResolve += (_, e) => LoadEmbeddedFoundationAssembly(new AssemblyName(e.Name).Name);
+    }
+
+    private static Assembly? LoadEmbeddedFoundationAssembly(string? asmName)
+    {
+        if (asmName is not ("Foundation.Core" or "Foundation.Installer")) return null;
+        return LoadedFoundationAssemblies.GetOrAdd(asmName, static key =>
         {
-            string? asmName = new AssemblyName(e.Name).Name;
-            if (asmName is "Foundation.Core" or "Foundation.Installer")
-            {
-                using Stream? gzStream = typeof(Program).Assembly.GetManifestResourceStream(asmName + ".dll.gz");
-                if (gzStream is not null)
-                {
-                    using var decompressor = new GZipStream(gzStream, CompressionMode.Decompress);
-                    using var ms = new MemoryStream();
-                    decompressor.CopyTo(ms);
-                    return Assembly.Load(ms.ToArray());
-                }
-            }
-            return null;
-        };
+            using Stream? gzStream = typeof(Program).Assembly.GetManifestResourceStream(key + ".dll.gz")
+                ?? throw new FileNotFoundException($"Missing embedded Foundation assembly resource '{key}.dll.gz'.");
+            using var decompressor = new GZipStream(gzStream, CompressionMode.Decompress);
+            using var ms = new MemoryStream();
+            decompressor.CopyTo(ms);
+            ms.Position = 0;
+            return AssemblyLoadContext.Default.LoadFromStream(ms);
+        });
     }
 
     [STAThread]
@@ -108,21 +112,11 @@ public static class Program
     {
         string version = typeof(Program).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? "0.1.0";
+            ?? "0.2.0";
 
         int plusIdx = version.IndexOf('+');
         if (plusIdx > 0) version = version[..plusIdx];
 
-        var descriptor = new InstallerAppDescriptor(
-            ProductName: "Mother",
-            DisplayName: "Mother",
-            Publisher: "Personal Suite",
-            Version: version,
-            MainExecutableRelativePath: Path.Combine("app", "Mother.App.exe"),
-            Subtitle: "Clean Release Root (Mother.exe + app\\, scripts\\, data\\)",
-            EmbeddedPayloadResourceName: "Mother.Installer.Embedded.payload.zip",
-            BrandAccentHex: "#38bdf8");
-
-        return StandardInstallerHost.Run(descriptor, args, typeof(Program).Assembly);
+        return MotherInstallerRunner.Run(args, version, typeof(Program).Assembly);
     }
 }

@@ -55,7 +55,7 @@ public sealed class FleetDoctorService
             "foundation-sdk",
             "Foundation SDK Pin",
             "pass",
-            File.Exists(sdkManifest) ? "sdk-manifest.json verified alongside runtime." : "Foundation.Core v0.3.0 loaded.",
+            File.Exists(sdkManifest) ? "sdk-manifest.json verified alongside runtime." : "Foundation.Core v0.4.0 loaded.",
             false));
 
         checks.Add(new DoctorCheckDto(

@@ -1,8 +1,8 @@
 # Project Context: Mother (`<WORKSPACE_ROOT>/Mother\`)
 
-- **Role:** Single Shared Suite Daemon (:5100), Telemetry Hub & Watchdog (Tier A Backend, Full SemVer `v0.1.0` Live, `Foundation v0.3.0`).
-- **Workspace & Sandbox:** [`Dev\`](file:///<WORKSPACE_ROOT>/Mother/Dev/) (Code/Tests) | [`Sandbox\`](file:///<WORKSPACE_ROOT>/Mother/Sandbox/) (Fail-closed `--test-mode` only)
-- **Canonical Prod & SDK (Read-Only):** `<PROGRAMS_ROOT>/Mother\` | [`Foundation\`](file:///<WORKSPACE_ROOT>/Foundation/) (Sync to `Dev\lib\` only)
+- **Role:** Single Shared Suite Daemon (:5100), Telemetry Hub & Watchdog (Tier A Backend, Full SemVer `v0.2.0`, `Foundation v0.4.0`, `MPL-2.0`).
+- **Workspace & Sandbox:** [`Dev\`](file:///<WORKSPACE_ROOT>/Mother/Dev/) (Code/Tests) | [`Sandbox\`](file:///<WORKSPACE_ROOT>/Mother/Sandbox/) (`--test-mode`)
+- **Prod & SDK (Read-Only):** `%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\` (legacy `<PROGRAMS_ROOT>/Mother\`) | [`Foundation\`](file:///<WORKSPACE_ROOT>/Foundation/) (`Dev\lib\`)
 
 ## 1. Root Documentation Quartet & Lifecycle State
 - **Quartet & State:** [`README.md`](file:///<WORKSPACE_ROOT>/Mother/README.md) | [`FEATURES.md`](file:///<WORKSPACE_ROOT>/Mother/FEATURES.md) | [`ROADMAP.md`](file:///<WORKSPACE_ROOT>/Mother/ROADMAP.md) | [`CHANGELOG.md`](file:///<WORKSPACE_ROOT>/Mother/CHANGELOG.md) | [`active.state`](file:///<WORKSPACE_ROOT>/Mother/active.state)

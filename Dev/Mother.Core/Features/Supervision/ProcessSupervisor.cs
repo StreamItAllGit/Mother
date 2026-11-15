@@ -88,6 +88,9 @@ public sealed class ProcessSupervisor : IDisposable
     public SisterAppRuntimeDto? GetSnapshot(string appId) =>
         _children.TryGetValue(appId, out ManagedChild? c) ? ToDto(c) : null;
 
+    public DateTime? GetLastActivityUtc(string appId) =>
+        _children.TryGetValue(appId, out ManagedChild? c) ? c.LastActivityUtc : null;
+
     public void TouchActivity(string appId)
     {
         if (_children.TryGetValue(appId, out ManagedChild? c))
@@ -141,30 +144,35 @@ public sealed class ProcessSupervisor : IDisposable
             return true;
         }
 
-        string exePath = ResolveExecutablePath(c.Manifest);
-        if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
+        int port = _paths.Options.TestMode ? c.Manifest.SandboxPort : c.Manifest.InternalPort;
+        MotherSettings cfg = _settings.GetCurrent();
+        int motherPort = _paths.Options.PortOverride ?? (_paths.Options.TestMode ? cfg.TestModePort : cfg.Port);
+        ProcessStartInfo? psi;
+        try
         {
-            c.State = "stopped";
-            c.LastError = "Executable not staged on disk (external or mock probe mode).";
-            message = c.LastError;
+            psi = WorkerLaunchCommandBuilder.BuildStartInfo(
+                c.Manifest,
+                _paths,
+                port,
+                motherPort,
+                out _,
+                out string unavailableReason);
+            if (psi is null)
+            {
+                c.State = "stopped";
+                c.LastError = unavailableReason;
+                message = unavailableReason;
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            c.State = "error";
+            c.LastError = ex.Message;
+            message = ex.Message;
+            _diag.Log("WARN", c.Manifest.AppId, "Supervision", $"Rejected child launch: {ex.Message}");
             return false;
         }
-
-        int port = _paths.Options.TestMode ? c.Manifest.SandboxPort : c.Manifest.InternalPort;
-        var psi = new ProcessStartInfo(exePath)
-        {
-            WorkingDirectory = Path.GetDirectoryName(exePath) ?? c.Manifest.InstallDir,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        psi.ArgumentList.Add("--managed-by-mother");
-        psi.ArgumentList.Add("--bind");
-        psi.ArgumentList.Add("127.0.0.1");
-        psi.ArgumentList.Add("--port");
-        psi.ArgumentList.Add(port.ToString());
-        if (_paths.Options.TestMode) psi.ArgumentList.Add("--test-mode");
 
         var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
         proc.OutputDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) _diag.Log("INFO", c.Manifest.AppId, "ChildStdout", e.Data); };
@@ -277,13 +285,6 @@ public sealed class ProcessSupervisor : IDisposable
             c.State = "stopped";
         }
         AppStateChanged?.Invoke(ToDto(c));
-    }
-
-    private string ResolveExecutablePath(SisterAppEntry m)
-    {
-        if (string.IsNullOrWhiteSpace(m.Executable) || string.IsNullOrWhiteSpace(m.InstallDir)) return string.Empty;
-        string combined = Path.IsPathRooted(m.Executable) ? m.Executable : Path.Combine(m.InstallDir, m.Executable);
-        return _paths.Sandbox.IsContainedSandbox ? _paths.AssertContainedIfSandbox(combined) : combined;
     }
 
     private SisterAppRuntimeDto ToDto(ManagedChild c)

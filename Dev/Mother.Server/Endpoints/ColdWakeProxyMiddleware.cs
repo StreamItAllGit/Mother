@@ -12,6 +12,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Mother.Core;
 
 namespace Mother.Server.Endpoints;
@@ -38,11 +39,24 @@ public static class ColdWakeProxyMiddleware
         app.Map("/api/v1/apps/{appId}/{**catchAll}", (HttpContext ctx, string appId, string? catchAll) =>
             ProxyAsync(ctx, runtime, appId, isApiRoute: true, catchAll));
 
+        app.Map("/api/v1/apps/{appId}", (HttpContext ctx, string appId) =>
+            ProxyAsync(ctx, runtime, appId, isApiRoute: true, catchAll: null));
+
         app.Map("/app/{appId}/{**catchAll}", (HttpContext ctx, string appId, string? catchAll) =>
             ProxyAsync(ctx, runtime, appId, isApiRoute: false, catchAll));
 
-        app.Map("/app/{appId}", (HttpContext ctx, string appId) =>
-            ProxyAsync(ctx, runtime, appId, isApiRoute: false, catchAll: null));
+        app.Map("/app/{appId}", async (HttpContext ctx, string appId) =>
+        {
+            string rawPath = ctx.Request.Path.Value ?? string.Empty;
+            if (!rawPath.EndsWith('/'))
+            {
+                string qs = ctx.Request.QueryString.HasValue ? ctx.Request.QueryString.Value! : string.Empty;
+                ctx.Response.StatusCode = StatusCodes.Status307TemporaryRedirect;
+                ctx.Response.Headers.Location = $"/app/{appId}/{qs}";
+                return;
+            }
+            await ProxyAsync(ctx, runtime, appId, isApiRoute: false, catchAll: null);
+        });
     }
 
     private static async Task ProxyAsync(
@@ -152,11 +166,13 @@ public static class ColdWakeProxyMiddleware
         foreach (var header in ctx.Request.Headers)
         {
             if (HopByHopHeaders.Contains(header.Key)) continue;
+            if (header.Key.Equals("X-Forwarded-Prefix", StringComparison.OrdinalIgnoreCase)) continue;
             if (!reqMsg.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray()))
             {
                 reqMsg.Content?.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
             }
         }
+        reqMsg.Headers.TryAddWithoutValidation("X-Forwarded-Prefix", $"/app/{entry.AppId}");
 
         try
         {
@@ -175,10 +191,19 @@ public static class ColdWakeProxyMiddleware
                 if (!HopByHopHeaders.Contains(h.Key))
                     ctx.Response.Headers[h.Key] = h.Value.ToArray();
             }
+            if (respMsg.Content.Headers.ContentType?.MediaType?.Equals("text/event-stream", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                ctx.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+            }
             await respMsg.Content.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
+            if (ctx.RequestAborted.IsCancellationRequested || ctx.Response.HasStarted)
+            {
+                return;
+            }
+
             ctx.Response.StatusCode = StatusCodes.Status502BadGateway;
             await ctx.Response.WriteAsJsonAsync(new
             {

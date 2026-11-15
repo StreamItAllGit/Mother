@@ -8,7 +8,7 @@
     <ApplicationIcon>..\Assets\app_icon.ico</ApplicationIcon>
     <Title>Mother</Title>
     <Product>Mother</Product>
-    <Company>Personal Suite</Company>
+    <Company>StreamItAll</Company>
   </PropertyGroup>
 
   <ItemGroup>

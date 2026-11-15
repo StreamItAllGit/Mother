@@ -60,6 +60,9 @@ public sealed class MotherSettings
     [JsonPropertyName("customManifestRoots")]
     public List<string> CustomManifestRoots { get; set; } = new();
 
+    [JsonPropertyName("targetDrives")]
+    public List<string> TargetDrives { get; set; } = new();
+
     [JsonPropertyName("residencyOverrides")]
     public Dictionary<string, string> ResidencyOverrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -80,6 +83,7 @@ public sealed class MotherSettings
             ? PostRunPowerPolicy
             : "StayAwake";
         CustomManifestRoots ??= new List<string>();
+        TargetDrives ??= new List<string>();
         ResidencyOverrides ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         return this;
     }

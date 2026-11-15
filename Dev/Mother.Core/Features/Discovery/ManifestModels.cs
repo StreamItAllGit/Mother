@@ -53,7 +53,7 @@ public static class ManifestParser
         string name = FirstString(root, "name", "displayName", "display_name", "shortName") ?? known.Name ?? appId;
         string version = FirstString(root, "version") ?? "0.1.0";
         string minSuite = FirstString(root, "minSuiteVersion", "min_suite_version") ?? "0.1.0";
-        string sdkVer = FirstString(root, "sdkVersion", "sdk_version") ?? "0.3.0";
+        string sdkVer = FirstString(root, "sdkVersion", "sdk_version") ?? "0.4.0";
         string accent = FirstString(root, "brandAccent", "brand_accent", "brand_color", "accentColor") ?? known.Accent ?? "#38bdf8";
 
         int internalPort = FirstInt(root, "internalPort", "internal_port", "port") ?? known.ProdPort;
@@ -74,14 +74,18 @@ public static class ManifestParser
         if (root.TryGetProperty("residency", out JsonElement resObj) && resObj.ValueKind == JsonValueKind.Object)
         {
             residencyMode = FirstString(resObj, "defaultMode", "mode") ?? residencyMode;
-            idleMins = FirstInt(resObj, "idleTimeoutMinutes") ?? idleMins;
-            wakeApi = FirstBool(resObj, "wakeOnApiRequest") ?? wakeApi;
-            wakeUi = FirstBool(resObj, "wakeOnUiNavigation") ?? wakeUi;
+            idleMins = FirstInt(resObj, "idleTimeoutMinutes", "idle_timeout_minutes") ?? idleMins;
+            wakeApi = FirstBool(resObj, "wakeOnApiRequest", "wake_on_api_request") ?? wakeApi;
+            wakeUi = FirstBool(resObj, "wakeOnUiNavigation", "wake_on_ui_navigation") ?? wakeUi;
         }
         else
         {
             residencyMode = FirstString(root, "residencyMode", "residency_mode") ?? residencyMode;
         }
+
+        idleMins = FirstInt(root, "idleTimeoutMinutes", "idle_timeout_minutes") ?? idleMins;
+        wakeApi = FirstBool(root, "wakeOnApiRequest", "wake_on_api_request") ?? wakeApi;
+        wakeUi = FirstBool(root, "wakeOnUiNavigation", "wake_on_ui_navigation") ?? wakeUi;
 
         string healthEp = "/api/v1/health";
         if (root.TryGetProperty("endpoints", out JsonElement epObj) && epObj.ValueKind == JsonValueKind.Object)
@@ -92,6 +96,14 @@ public static class ManifestParser
         {
             healthEp = FirstString(root, "healthEndpoint", "health_endpoint") ?? healthEp;
         }
+
+        string normResidency = residencyMode.Trim().ToLowerInvariant() switch
+        {
+            "warm" or "always-on" => "warm",
+            "cold" or "on-demand" => "cold",
+            "disabled" => "disabled",
+            _ => "warm"
+        };
 
         return new SisterAppEntry
         {
@@ -107,7 +119,7 @@ public static class ManifestParser
             WorkerArgs = ReadStringArray(root, "workerArgs", "worker_args"),
             InternalPort = internalPort,
             SandboxPort = sandboxPort,
-            ResidencyMode = residencyMode.ToLowerInvariant() is "warm" or "cold" or "disabled" ? residencyMode.ToLowerInvariant() : "warm",
+            ResidencyMode = normResidency,
             IdleTimeoutMinutes = Math.Clamp(idleMins, 1, 1440),
             WakeOnApiRequest = wakeApi,
             WakeOnUiNavigation = wakeUi,
@@ -116,10 +128,48 @@ public static class ManifestParser
             SharedMounts = ReadStringArray(root, "sharedMounts", "shared_mounts"),
             MutuallyExclusiveWith = ReadStringArray(root, "mutuallyExclusiveWith", "mutually_exclusive_with"),
             TargetDrives = ReadStringArray(root, "targetDrives", "target_drives"),
+            Schedules = ReadSchedules(root),
+            Commands = ReadCommands(root),
             SecretVaultPath = FirstString(root, "secretVaultPath", "secret_vault_path"),
             ManifestSourcePath = filePath,
             DetectedSchemaFormat = schemaVer >= 2 ? "v2" : "v1"
         };
+    }
+
+    private static IReadOnlyList<SisterScheduleEntry> ReadSchedules(JsonElement root)
+    {
+        if (!root.TryGetProperty("schedules", out JsonElement arr) || arr.ValueKind != JsonValueKind.Array)
+            return Array.Empty<SisterScheduleEntry>();
+
+        var list = new List<SisterScheduleEntry>();
+        int idx = 0;
+        foreach (JsonElement item in arr.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+            idx++;
+            string schedId = FirstString(item, "scheduleId", "schedule_id", "id") ?? $"schedule-{idx}";
+            string name = FirstString(item, "name", "label") ?? schedId;
+            string cadence = FirstString(item, "cadence") ?? "daily";
+            string timeUtc = FirstString(item, "timeUtc", "time_utc") ?? "03:00";
+            bool runIfMissed = FirstBool(item, "runIfMissed", "run_if_missed") ?? true;
+            IReadOnlyList<string> drives = ReadStringArray(item, "targetDrives", "target_drives");
+            string triggerEp = FirstString(item, "triggerEndpoint", "trigger_endpoint") ?? "/api/v1/health";
+            list.Add(new SisterScheduleEntry(schedId, name, cadence, timeUtc, runIfMissed, drives, triggerEp));
+        }
+        return list;
+    }
+
+    private static SisterCommandsEntry? ReadCommands(JsonElement root)
+    {
+        if (!root.TryGetProperty("commands", out JsonElement obj) || obj.ValueKind != JsonValueKind.Object)
+            return null;
+
+        return new SisterCommandsEntry(
+            StartDaemon: FirstString(obj, "startDaemon", "start_daemon"),
+            Start: FirstString(obj, "start"),
+            StopDaemon: FirstString(obj, "stopDaemon", "stop_daemon"),
+            StatusCheck: FirstString(obj, "statusCheck", "status_check"),
+            BackupNow: FirstString(obj, "backupNow", "backup_now"));
     }
 
     private static string? FirstString(JsonElement obj, params string[] keys)

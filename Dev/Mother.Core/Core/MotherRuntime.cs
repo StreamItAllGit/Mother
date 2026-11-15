@@ -55,6 +55,7 @@ public sealed class MotherRuntime : IDisposable
     public ManifestRegistryService Manifests { get; }
     public ProcessSupervisor Supervisor { get; }
     public ColdWakeCoordinator ColdWake { get; }
+    public FleetScheduleEvaluator Scheduler { get; }
     public HealthPollerService Poller { get; }
     public WatchdogSchedulerService Watchdog { get; }
     public ResourceTrafficCopService TrafficCop { get; }
@@ -84,6 +85,7 @@ public sealed class MotherRuntime : IDisposable
         Watchdog = new WatchdogSchedulerService(Paths, Diagnostics);
         TrafficCop = new ResourceTrafficCopService(Paths, Db, Diagnostics);
         Coexistence = new FleetCoexistenceArbitrator(Paths, Settings, Diagnostics);
+        Scheduler = new FleetScheduleEvaluator(Paths, Supervisor, ColdWake, Coexistence, TrafficCop, Diagnostics);
         Vaults = new SecretVaultInspector(Paths);
         SleepInhibitor = new PowerSleepInhibitor(Paths, Diagnostics);
         Power = new FleetPowerCoordinator(Paths, Settings, SleepInhibitor, Diagnostics);
@@ -101,7 +103,7 @@ public sealed class MotherRuntime : IDisposable
             Status: "ok",
             SuiteId: "mother",
             Version: Version,
-            SdkVersion: "0.3.0",
+            SdkVersion: "0.4.0",
             Pid: Environment.ProcessId,
             UptimeSeconds: Math.Max(0, (long)(DateTime.UtcNow - _startedUtc).TotalSeconds),
             TestMode: Paths.Options.TestMode,
@@ -144,6 +146,8 @@ public sealed class MotherRuntime : IDisposable
                 int liveLocks = locks.Count(l => l.Status == "live");
                 Power.EvaluateTick(apps, liveLocks, Watchdog.IsRegistered());
                 ConflictsUpdated?.Invoke(Coexistence.Evaluate(apps, locks));
+                await Scheduler.EvaluateDueSchedulesAsync(manifests, ct).ConfigureAwait(false);
+                await ColdWake.EvaluateIdleHibernationAsync(manifests, Supervisor.GetSnapshots(), ct).ConfigureAwait(false);
                 heartbeat.ReportProgress(tick, Math.Max(1, manifests.Count), $"{apps.Count(a => a.IsOnline)} online");
             }
             catch (OperationCanceledException)

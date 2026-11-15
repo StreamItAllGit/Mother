@@ -9,6 +9,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using Foundation.Core;
+using Microsoft.Win32;
 
 namespace Mother.Core.Configuration;
 
@@ -85,7 +86,8 @@ public sealed class PathResolver
     {
         if (Sandbox.IsContainedSandbox)
         {
-            return SandboxEnvironment.AssertPathContained(candidatePath, DataDirectory);
+            string containmentRoot = SandboxEnvironment.ResolveSiblingSandboxRoot(DataDirectory) ?? DataDirectory;
+            return SandboxEnvironment.AssertPathContained(candidatePath, containmentRoot);
         }
         return Path.GetFullPath(candidatePath);
     }
@@ -114,7 +116,7 @@ public sealed class PathResolver
                 }
             }
         }
-        return "0.1.0";
+        return "0.2.0";
     }
 
     private string ResolveProgramsRoot(string? explicitOverride)
@@ -122,7 +124,7 @@ public sealed class PathResolver
         if (!string.IsNullOrWhiteSpace(explicitOverride))
         {
             string full = Path.GetFullPath(explicitOverride.Trim());
-            return Sandbox.IsContainedSandbox ? SandboxEnvironment.AssertPathContained(full, DataDirectory) : full;
+            return AssertContainedIfSandbox(full);
         }
 
         if (Sandbox.IsContainedSandbox)
@@ -130,33 +132,51 @@ public sealed class PathResolver
             return Path.Combine(DataDirectory, "mock-apps");
         }
 
-        string? sysRoot = Path.GetPathRoot(Environment.SystemDirectory);
-        string? fallbackCandidate = null;
-        foreach (DriveInfo drive in DriveInfo.GetDrives())
+        string? motherHome = Environment.GetEnvironmentVariable("MOTHER_HOME");
+        if (!string.IsNullOrWhiteSpace(motherHome))
         {
-            if (!drive.IsReady || drive.DriveType != DriveType.Fixed)
+            string fullHome = Path.GetFullPath(motherHome.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string? homeParent = Directory.GetParent(fullHome)?.FullName;
+            if (!string.IsNullOrWhiteSpace(homeParent) &&
+                string.Equals(Path.GetFileName(fullHome), "Mother", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(Path.GetFileName(homeParent), "Mother", StringComparison.OrdinalIgnoreCase))
             {
-                continue;
+                return homeParent;
             }
-            string candidate = Path.Combine(drive.RootDirectory.FullName, "Programs");
-            if (!Directory.Exists(candidate))
-            {
-                continue;
-            }
-            if (!string.Equals(drive.RootDirectory.FullName, sysRoot, StringComparison.OrdinalIgnoreCase))
-            {
-                return Path.GetFullPath(candidate);
-            }
-            fallbackCandidate ??= candidate;
+            return fullHome;
         }
 
-        if (!string.IsNullOrWhiteSpace(fallbackCandidate))
+        if (OperatingSystem.IsWindows())
         {
-            return Path.GetFullPath(fallbackCandidate);
+            using RegistryKey? key = Registry.CurrentUser.OpenSubKey(@"Software\StreamItAll\Mother");
+            string? suiteDir = key?.GetValue("SuiteInstallDir") as string;
+            if (!string.IsNullOrWhiteSpace(suiteDir))
+            {
+                return Path.GetFullPath(suiteDir.Trim());
+            }
+
+            string? installDir = key?.GetValue("InstallDir") as string;
+            if (!string.IsNullOrWhiteSpace(installDir))
+            {
+                DirectoryInfo? parent = Directory.GetParent(Path.GetFullPath(installDir.Trim()));
+                if (parent is not null)
+                {
+                    return parent.FullName;
+                }
+            }
+        }
+
+        DirectoryInfo? baseParent = Directory.GetParent(BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (baseParent is not null &&
+            baseParent.Parent is not null &&
+            string.Equals(baseParent.Name, "Mother", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(baseParent.Parent.Name, "Mother", StringComparison.OrdinalIgnoreCase))
+        {
+            return baseParent.Parent.FullName;
         }
 
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.GetFullPath(Path.Combine(localAppData, "Programs"));
+        return Path.GetFullPath(Path.Combine(localAppData, "Programs", "StreamItAll", "Mother"));
     }
 
     private static string ResolveMigrationsDirectory(string baseDir)

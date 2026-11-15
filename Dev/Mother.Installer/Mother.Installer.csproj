@@ -10,11 +10,15 @@
     <ApplicationIcon>..\Assets\app_icon.ico</ApplicationIcon>
     <Title>Mother Setup</Title>
     <Product>Mother</Product>
-    <Company>Personal Suite</Company>
+    <Company>StreamItAll</Company>
     <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
     <SelfContained Condition="'$(RuntimeIdentifier)' != ''">false</SelfContained>
     <EnableCompressionInSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</EnableCompressionInSingleFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mother.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="Foundation.Core">

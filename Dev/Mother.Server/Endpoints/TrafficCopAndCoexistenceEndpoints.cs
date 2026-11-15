@@ -15,11 +15,68 @@ namespace Mother.Server.Endpoints;
 public static class TrafficCopAndCoexistenceEndpoints
 {
     public sealed record RecordDeferralRequest(string AppId, string JobId, string DriveMount, string? BlockingAppId, string? LockFilePath, int Minutes = 30);
+    public sealed record SchedulerDeferRequest(
+        string AppId,
+        string? ScheduleId = null,
+        string? JobId = null,
+        string? DriveMount = null,
+        int? DeferMinutes = null,
+        int? Minutes = null,
+        string? DeferReason = null,
+        string? Reason = null,
+        string? BlockingAppId = null,
+        string? LockFilePath = null);
     public sealed record ApplyRecommendationsRequest(IReadOnlyList<string>? TargetAppIds, string? PresetId, IReadOnlyList<string>? SharedRoots);
     public sealed record ArbitrateRequest(string? TargetAppId);
 
     public static void MapTrafficCopAndCoexistenceEndpoints(this WebApplication app, MotherRuntime runtime)
     {
+        app.MapGet("/api/v1/scheduler/defer", async (int? limit, HttpContext ctx) =>
+        {
+            var schedules = runtime.Scheduler.GetScheduleStates();
+            var deferrals = await runtime.Db.GetDeferralsAsync(limit ?? 50, ctx.RequestAborted);
+            return Results.Ok(new { schedules, deferrals });
+        });
+
+        app.MapPost("/api/v1/scheduler/defer", async (SchedulerDeferRequest body, HttpContext ctx) =>
+        {
+            string scheduleId = !string.IsNullOrWhiteSpace(body.ScheduleId)
+                ? body.ScheduleId.Trim()
+                : (body.JobId?.Trim() ?? string.Empty);
+            if (string.IsNullOrWhiteSpace(body.AppId) || string.IsNullOrWhiteSpace(scheduleId))
+            {
+                return Results.BadRequest(new { errorCode = "INVALID_DEFERRAL", errorMessage = "appId and scheduleId are required." });
+            }
+
+            int deferMinutes = body.DeferMinutes ?? body.Minutes ?? 15;
+            if (deferMinutes <= 0) deferMinutes = 15;
+
+            string deferReason = !string.IsNullOrWhiteSpace(body.DeferReason)
+                ? body.DeferReason.Trim()
+                : (!string.IsNullOrWhiteSpace(body.Reason) ? body.Reason.Trim() : "Deferred via API");
+            string driveMount = string.IsNullOrWhiteSpace(body.DriveMount) ? "local" : body.DriveMount.Trim();
+
+            var schedule = await runtime.Scheduler.DeferScheduleAsync(
+                body.AppId,
+                scheduleId,
+                driveMount,
+                deferMinutes,
+                deferReason,
+                body.BlockingAppId,
+                body.LockFilePath,
+                ctx.RequestAborted);
+
+            return Results.Ok(new
+            {
+                appId = schedule.AppId,
+                scheduleId = schedule.ScheduleId,
+                deferMinutes = schedule.DeferMinutes,
+                deferReason = schedule.DeferReason,
+                nextRunAtUtc = schedule.NextRunAtUtc,
+                schedule
+            });
+        });
+
         app.MapGet("/api/v1/suite/scheduler/traffic-cop", async (HttpContext ctx) =>
         {
             var status = await runtime.TrafficCop.GetStatusAsync(runtime.Manifests.GetAll(), ctx.RequestAborted);

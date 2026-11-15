@@ -4,12 +4,17 @@
   "suiteId": "mother",
   "suiteName": "Mother",
   "minSuiteVersion": "0.1.0",
-  "sdkVersion": "0.3.0",
+  "sdkVersion": "0.4.0",
   "suitePort": 5100,
   "appId": "mother",
   "name": "Mother",
   "shortName": "Mother",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "spdxLicense": "MPL-2.0",
+  "installProfile": "full",
+  "suiteInstallDir": "%LOCALAPPDATA%\\Programs\\StreamItAll\\Mother",
+  "umbrellaSubpath": "StreamItAll\\Mother\\Mother",
+  "productionSubpath": "StreamItAll\\Mother\\Mother",
   "brandAccent": "#38bdf8",
   "executable": "app\\Mother.App.exe",
   "launcherExecutable": "Mother.exe",
@@ -20,7 +25,9 @@
   "apiBasePath": "/api/v1/suite",
   "residency": {
     "defaultMode": "warm",
-    "allowedModes": ["warm"],
+    "allowedModes": [
+      "warm"
+    ],
     "idleTimeoutMinutes": 0,
     "wakeOnApiRequest": true,
     "wakeOnUiNavigation": true,
@@ -31,12 +38,28 @@
     "suiteHealth": "/api/v1/suite/health",
     "apps": "/api/v1/suite/apps",
     "trafficCop": "/api/v1/suite/scheduler/traffic-cop",
+    "schedulerDefer": "/api/v1/scheduler/defer",
     "coexistenceStatus": "/api/v1/suite/coexistence/status",
     "doctorRun": "/api/v1/suite/doctor/run"
   },
-  "capabilities": ["suite-daemon", "reverse-proxy", "traffic-cop", "coexistence-broker", "power-coordinator", "watchdog", "doctor", "pwa-gateway"],
+  "capabilities": [
+    "suite-daemon",
+    "reverse-proxy",
+    "traffic-cop",
+    "coexistence-broker",
+    "power-coordinator",
+    "watchdog",
+    "doctor",
+    "pwa-gateway"
+  ],
   "sharedMounts": [],
   "mutuallyExclusiveWith": [],
-  "targetDrives": ["C:", "D:"],
-  "schedules": []
+  "schedules": [],
+  "manifestType": "suite-app",
+  "updatedAtUtc": "2026-11-15T10:58:00.000Z",
+  "containerTier": "Tier A (6-Folder)",
+  "ecosystemTier": "Tier1_Infrastructure",
+  "appArchetype": "SIS",
+  "activeMilestone": "0.2.1",
+  "goalMajorVersion": "1.0.0"
 }

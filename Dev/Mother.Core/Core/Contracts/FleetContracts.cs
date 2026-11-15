@@ -9,6 +9,24 @@ using System.Text.Json.Serialization;
 
 namespace Mother.Core.Contracts;
 
+public sealed record SisterScheduleEntry(
+    [property: JsonPropertyName("scheduleId")] string ScheduleId,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("cadence")] string Cadence,
+    [property: JsonPropertyName("timeUtc")] string TimeUtc,
+    [property: JsonPropertyName("runIfMissed")] bool RunIfMissed,
+    [property: JsonPropertyName("targetDrives")] IReadOnlyList<string> TargetDrives,
+    [property: JsonPropertyName("triggerEndpoint")] string TriggerEndpoint
+);
+
+public sealed record SisterCommandsEntry(
+    [property: JsonPropertyName("startDaemon")] string? StartDaemon = null,
+    [property: JsonPropertyName("start")] string? Start = null,
+    [property: JsonPropertyName("stopDaemon")] string? StopDaemon = null,
+    [property: JsonPropertyName("statusCheck")] string? StatusCheck = null,
+    [property: JsonPropertyName("backupNow")] string? BackupNow = null
+);
+
 public sealed record SisterAppEntry
 {
     [JsonPropertyName("schemaVersion")]
@@ -27,7 +45,7 @@ public sealed record SisterAppEntry
     public string MinSuiteVersion { get; init; } = "0.1.0";
 
     [JsonPropertyName("sdkVersion")]
-    public string SdkVersion { get; init; } = "0.3.0";
+    public string SdkVersion { get; init; } = "0.4.0";
 
     [JsonPropertyName("brandAccent")]
     public string BrandAccent { get; init; } = "#38bdf8";
@@ -73,6 +91,12 @@ public sealed record SisterAppEntry
 
     [JsonPropertyName("targetDrives")]
     public IReadOnlyList<string> TargetDrives { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("schedules")]
+    public IReadOnlyList<SisterScheduleEntry> Schedules { get; init; } = Array.Empty<SisterScheduleEntry>();
+
+    [JsonPropertyName("commands")]
+    public SisterCommandsEntry? Commands { get; init; }
 
     [JsonPropertyName("secretVaultPath")]
     public string? SecretVaultPath { get; init; }

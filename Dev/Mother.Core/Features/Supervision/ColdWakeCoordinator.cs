@@ -4,7 +4,9 @@
 // @exports: WakeOutcomeDto, ColdWakeCoordinator
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -76,5 +78,41 @@ public sealed class ColdWakeCoordinator
         }
 
         return new WakeOutcomeDto(entry.AppId, false, snap?.Pid, sw.ElapsedMilliseconds, startMsg);
+    }
+
+    public async Task<IReadOnlyList<string>> EvaluateIdleHibernationAsync(
+        IReadOnlyList<SisterAppEntry> manifests,
+        IReadOnlyList<SisterAppRuntimeDto> snapshots,
+        CancellationToken ct = default,
+        DateTime? utcNowOverride = null)
+    {
+        DateTime now = utcNowOverride ?? DateTime.UtcNow;
+        var hibernated = new List<string>();
+        var manifestMap = manifests.ToDictionary(m => m.AppId, StringComparer.OrdinalIgnoreCase);
+
+        foreach (SisterAppRuntimeDto snap in snapshots)
+        {
+            if (ct.IsCancellationRequested) break;
+            if (!snap.IsOnline || snap.Pid is null) continue;
+            if (snap.ActiveJobs > 0 || snap.QueuedJobs > 0) continue;
+            if (!manifestMap.TryGetValue(snap.AppId, out SisterAppEntry? entry)) continue;
+            if (!string.Equals(entry.ResidencyMode, "cold", StringComparison.OrdinalIgnoreCase)) continue;
+            if (entry.IdleTimeoutMinutes <= 0) continue;
+
+            DateTime? lastActivity = _supervisor.GetLastActivityUtc(snap.AppId);
+            if (lastActivity is null) continue;
+
+            if (now - lastActivity.Value >= TimeSpan.FromMinutes(entry.IdleTimeoutMinutes))
+            {
+                _diag.Log("INFO", entry.AppId, "ColdWake",
+                    $"Hibernating idle cold worker after {entry.IdleTimeoutMinutes}m inactivity.");
+                if (await _supervisor.StopAppAsync(entry.AppId, ct: ct).ConfigureAwait(false))
+                {
+                    hibernated.Add(entry.AppId);
+                }
+            }
+        }
+
+        return hibernated;
     }
 }

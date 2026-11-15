@@ -236,7 +236,7 @@ public static class SuiteApiEndpoints
             appId = "mother",
             name = "Mother",
             version = runtime.Version,
-            sdkVersion = "0.3.0",
+            sdkVersion = "0.4.0",
             brandAccent = "#38bdf8",
             port = runtime.ResolveListenPort(),
             testMode = runtime.Paths.Options.TestMode,
