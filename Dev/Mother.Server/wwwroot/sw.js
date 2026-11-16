@@ -3,7 +3,7 @@
 // @depends-on: CacheStorage API
 // @exports: ServiceWorker lifecycle handlers
 
-const CACHE_NAME = 'mother-shell-v0.1.0';
+const CACHE_NAME = 'mother-shell-v0.2.0-hf.1';
 const SHELL_ASSETS = ['/', '/index.html', '/css/mother.css', '/css/mother-components.css', '/js/app.js'];
 
 self.addEventListener('install', (event) => {

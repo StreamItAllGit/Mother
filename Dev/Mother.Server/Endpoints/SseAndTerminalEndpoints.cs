@@ -56,7 +56,7 @@ public static class SseAndTerminalEndpoints
                 await WriteSseAsync(ctx, "heartbeat", new
                 {
                     tsUtc = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
-                    testMode = runtime.Paths.Options.TestMode,
+                    isolatedMode = runtime.Paths.IsIsolatedOverride,
                     version = runtime.Version
                 }, ctx.RequestAborted);
 

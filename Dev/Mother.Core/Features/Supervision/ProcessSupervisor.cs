@@ -144,9 +144,9 @@ public sealed class ProcessSupervisor : IDisposable
             return true;
         }
 
-        int port = _paths.Options.TestMode ? c.Manifest.SandboxPort : c.Manifest.InternalPort;
+        int port = c.Manifest.InternalPort;
         MotherSettings cfg = _settings.GetCurrent();
-        int motherPort = _paths.Options.PortOverride ?? (_paths.Options.TestMode ? cfg.TestModePort : cfg.Port);
+        int motherPort = _paths.Options.PortOverride ?? cfg.Port;
         ProcessStartInfo? psi;
         try
         {
@@ -289,14 +289,13 @@ public sealed class ProcessSupervisor : IDisposable
 
     private SisterAppRuntimeDto ToDto(ManagedChild c)
     {
-        int effectivePort = _paths.Options.TestMode ? c.Manifest.SandboxPort : c.Manifest.InternalPort;
+        int effectivePort = c.Manifest.InternalPort;
         return new SisterAppRuntimeDto(
             AppId: c.Manifest.AppId,
             Name: c.Manifest.Name,
             Version: c.Manifest.Version,
             BrandAccent: c.Manifest.BrandAccent,
             InternalPort: c.Manifest.InternalPort,
-            SandboxPort: c.Manifest.SandboxPort,
             EffectivePort: effectivePort,
             Residency: c.Manifest.ResidencyMode,
             State: c.State,

@@ -27,7 +27,7 @@ public sealed class MainForm : Form
         _runtime = runtime;
         _baseUrl = baseUrl;
 
-        Text = $"Mother v{runtime.Version}{(runtime.Paths.Options.TestMode ? " [SANDBOX]" : string.Empty)}";
+        Text = $"Mother v{runtime.Version}{(runtime.Paths.IsIsolatedOverride ? " [ISOLATED]" : string.Empty)}";
         Width = 1360;
         Height = 860;
         MinimumSize = new Size(360, 480);
@@ -79,7 +79,7 @@ public sealed class MainForm : Form
             Directory.CreateDirectory(wvData);
             var env = await CoreWebView2Environment.CreateAsync(null, wvData);
             await _webView.EnsureCoreWebView2Async(env);
-            _webView.CoreWebView2.Settings.AreDevToolsEnabled = _runtime.Paths.Options.TestMode;
+            _webView.CoreWebView2.Settings.AreDevToolsEnabled = _runtime.Paths.IsIsolatedOverride;
             _webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
             string? tabId = _runtime.Paths.Options.SuiteTabAppId ?? _runtime.Paths.Options.WindowAppId;
             string initialUrl = string.IsNullOrWhiteSpace(tabId)

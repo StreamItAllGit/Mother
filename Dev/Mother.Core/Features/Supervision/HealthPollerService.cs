@@ -39,12 +39,12 @@ public sealed class HealthPollerService
         _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromMilliseconds(900) };
     }
 
-    public async Task PollOnceAsync(IEnumerable<SisterAppEntry> manifests, bool testMode, CancellationToken ct = default)
+    public async Task PollOnceAsync(IEnumerable<SisterAppEntry> manifests, CancellationToken ct = default)
     {
         foreach (SisterAppEntry entry in manifests)
         {
             if (entry.ResidencyMode == "disabled") continue;
-            int port = testMode ? entry.SandboxPort : entry.InternalPort;
+            int port = entry.InternalPort;
             if (port <= 0) continue;
 
             bool online = false;

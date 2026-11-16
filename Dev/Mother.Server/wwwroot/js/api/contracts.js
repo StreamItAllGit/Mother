@@ -70,7 +70,6 @@ export const RUNTIME_APP_KEYS = Object.freeze([
   'version',
   'brandAccent',
   'internalPort',
-  'sandboxPort',
   'effectivePort',
   'residency',
   'state',
@@ -96,7 +95,7 @@ export const SUITE_HEALTH_KEYS = Object.freeze([
   'sdkVersion',
   'pid',
   'uptimeSeconds',
-  'testMode',
+  'isolatedMode',
   'sqliteUserVersion',
   'registeredApps',
   'warmApps',
@@ -153,7 +152,7 @@ export const POWER_STATUS_KEYS = Object.freeze([
   'countdownActive',
   'secondsRemaining',
   'idleSecondsElapsed',
-  'testModeSimulated',
+  'simulated',
   'watchdogRegistered',
 ]);
 

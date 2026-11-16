@@ -1,5 +1,5 @@
 // @module: Mother.Core.Features.Power.PowerSleepInhibitor
-// @purpose: Toggles Win32 SetThreadExecutionState when active .hklock holds exist; strictly simulated/no-op in --test-mode and --dry-run.
+// @purpose: Toggles Win32 SetThreadExecutionState when active .hklock holds exist; strictly simulated/no-op in isolated and --dry-run modes.
 // @depends-on: System, System.Runtime.InteropServices, Mother.Core.Configuration, Mother.Core.Diagnostics
 // @exports: PowerSleepInhibitor
 
@@ -22,7 +22,7 @@ public sealed class PowerSleepInhibitor : IDisposable
     private readonly MotherDiagnostics _diag;
 
     public bool IsInhibiting { get; private set; }
-    public bool IsSimulated => _paths.Options.TestMode || _paths.Options.DryRun || _paths.Sandbox.IsContainedSandbox;
+    public bool IsSimulated => _paths.IsIsolatedOverride || _paths.Options.DryRun;
 
     public PowerSleepInhibitor(PathResolver paths, MotherDiagnostics diag)
     {

@@ -55,7 +55,7 @@ public sealed class FleetDoctorService
             "foundation-sdk",
             "Foundation SDK Pin",
             "pass",
-            File.Exists(sdkManifest) ? "sdk-manifest.json verified alongside runtime." : "Foundation.Core v0.4.0 loaded.",
+            File.Exists(sdkManifest) ? "sdk-manifest.json verified alongside runtime." : "Foundation.Core v0.4.1-hf.1 loaded.",
             false));
 
         checks.Add(new DoctorCheckDto(
@@ -73,14 +73,15 @@ public sealed class FleetDoctorService
             staleLocks == 0 ? "Zero stale locks detected." : $"{staleLocks} stale .hklock sentinel(s) eligible for purge.",
             staleLocks > 0));
 
+        bool simulatedWatchdog = _paths.IsIsolatedOverride || _paths.Options.DryRun;
         checks.Add(new DoctorCheckDto(
             "watchdog-task",
             "Master Watchdog (\\Mother_Watchdog)",
-            watchdogRegistered || _paths.Options.TestMode ? "pass" : "warn",
-            _paths.Options.TestMode
-                ? "Simulated in --test-mode (host Task Scheduler untouched)."
+            watchdogRegistered || simulatedWatchdog ? "pass" : "warn",
+            simulatedWatchdog
+                ? "Simulated in isolated/dry-run mode (host Task Scheduler untouched)."
                 : (watchdogRegistered ? @"\Mother_Watchdog registered." : @"\Mother_Watchdog not registered yet."),
-            !watchdogRegistered && !_paths.Options.TestMode));
+            !watchdogRegistered && !simulatedWatchdog));
 
         int crashes = _diag.CountCrashBundles();
         checks.Add(new DoctorCheckDto(

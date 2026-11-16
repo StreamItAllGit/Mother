@@ -45,7 +45,7 @@ public sealed record SisterAppEntry
     public string MinSuiteVersion { get; init; } = "0.1.0";
 
     [JsonPropertyName("sdkVersion")]
-    public string SdkVersion { get; init; } = "0.4.0";
+    public string SdkVersion { get; init; } = "0.4.1-hf.1";
 
     [JsonPropertyName("brandAccent")]
     public string BrandAccent { get; init; } = "#38bdf8";
@@ -61,9 +61,6 @@ public sealed record SisterAppEntry
 
     [JsonPropertyName("internalPort")]
     public int InternalPort { get; init; }
-
-    [JsonPropertyName("sandboxPort")]
-    public int SandboxPort { get; init; }
 
     [JsonPropertyName("residencyMode")]
     public string ResidencyMode { get; init; } = "warm";
@@ -114,7 +111,6 @@ public sealed record SisterAppRuntimeDto(
     [property: JsonPropertyName("version")] string Version,
     [property: JsonPropertyName("brandAccent")] string BrandAccent,
     [property: JsonPropertyName("internalPort")] int InternalPort,
-    [property: JsonPropertyName("sandboxPort")] int SandboxPort,
     [property: JsonPropertyName("effectivePort")] int EffectivePort,
     [property: JsonPropertyName("residency")] string Residency,
     [property: JsonPropertyName("state")] string State,
@@ -175,7 +171,7 @@ public sealed record PowerStatusDto(
     [property: JsonPropertyName("countdownActive")] bool CountdownActive,
     [property: JsonPropertyName("secondsRemaining")] int SecondsRemaining,
     [property: JsonPropertyName("idleSecondsElapsed")] int IdleSecondsElapsed,
-    [property: JsonPropertyName("testModeSimulated")] bool TestModeSimulated,
+    [property: JsonPropertyName("simulated")] bool Simulated,
     [property: JsonPropertyName("watchdogRegistered")] bool WatchdogRegistered
 );
 

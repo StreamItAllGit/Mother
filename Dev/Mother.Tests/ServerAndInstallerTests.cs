@@ -1,5 +1,5 @@
 // @module: Mother.Tests.ServerAndInstallerTests
-// @purpose: Integration tests for Kestrel endpoints, Cold-Wake 404/409 arbitration, Tailscale CGNAT filtering, QR SVG, and Foundation.Installer --test-mode lifecycle.
+// @purpose: Integration tests for Kestrel endpoints, Cold-Wake 404/409 arbitration, Tailscale CGNAT filtering, QR SVG, and Foundation.Installer isolated lifecycle.
 // @depends-on: System, System.IO, System.IO.Compression, System.Net, System.Net.Http, System.Text.Json, System.Threading.Tasks, Microsoft.AspNetCore.Builder, Foundation.Installer, Mother.Core, Mother.Server, Mother.Server.Endpoints, Xunit
 // @exports: ServerAndInstallerTests
 
@@ -122,7 +122,7 @@ public sealed class ServerAndInstallerTests
     }
 
     [Fact]
-    public async Task InstallerLifecycle_SilentTestModeInstallVerifyUninstallSucceeds()
+    public async Task InstallerLifecycle_SilentIsolatedInstallVerifyUninstallSucceeds()
     {
         using var scope = new TempWorkspaceScope();
         string stageDir = Path.Combine(scope.RootDir, "stage");
@@ -140,17 +140,15 @@ public sealed class ServerAndInstallerTests
             ProductName: "Mother",
             DisplayName: "Mother",
             Publisher: "Personal Suite",
-            Version: "0.1.0",
+            Version: "0.2.0-hf.1",
             MainExecutableRelativePath: Path.Combine("app", "Mother.App.exe"),
             BrandAccentHex: "#38bdf8");
 
-        var ctx = new InstallerSandboxContext(
+        var ctx = new InstallerRuntimeContext(
             cliDataDir: scope.DataDir,
             cliConfigPath: scope.ConfigFile,
             cliLogDir: scope.LogDir,
-            testMode: true,
             dryRun: false,
-            headless: true,
             envPrefix: descriptor.EnvPrefix);
 
         var engine = new InstallerEngine(descriptor, ctx, typeof(ServerAndInstallerTests).Assembly);
@@ -170,7 +168,7 @@ public sealed class ServerAndInstallerTests
     }
 
     [Fact]
-    public void InstallerProgram_NormalizesTestModeInstallDirWithoutExplicitDataDir()
+    public void InstallerProgram_IsolatedDryRunPreservesTargetWithoutHostMutation()
     {
         using var scope = new TempWorkspaceScope();
         string stageDir = Path.Combine(scope.RootDir, "stage-norm");
@@ -182,20 +180,12 @@ public sealed class ServerAndInstallerTests
 
         string targetDir = Path.Combine(scope.DataDir, "auto-contained-install");
 
-        string[] normalized = Mother.Installer.Program.NormalizeInstallerArgs(
-            new[] { "--test-mode", "--silent", "--dry-run", "--install-dir", targetDir });
-        Assert.Contains("--data-dir", normalized);
-        int idx = Array.IndexOf(normalized, "--data-dir");
-        Assert.True(idx >= 0 && idx + 1 < normalized.Length);
-        Assert.Equal(targetDir, normalized[idx + 1]);
-
-        string[] eqNormalized = Mother.Installer.Program.NormalizeInstallerArgs(
-            new[] { "--test-mode", $"--install-dir={targetDir}" });
-        Assert.Contains("--data-dir", eqNormalized);
-        Assert.Equal(targetDir, eqNormalized[^1]);
+        string[] passed = Mother.Installer.Program.NormalizeInstallerArgs(
+            new[] { "--silent", "--dry-run", "--data-dir", scope.DataDir, "--install-dir", targetDir });
+        Assert.Contains("--data-dir", passed);
 
         int exitCode = Mother.Installer.Program.Main(
-            new[] { "--test-mode", "--silent", "--dry-run", "--headless", "--payload", payloadZip, "--install-dir", targetDir });
+            new[] { "--silent", "--dry-run", "--data-dir", scope.DataDir, "--payload", payloadZip, "--install-dir", targetDir });
         Assert.Equal(0, exitCode);
     }
 

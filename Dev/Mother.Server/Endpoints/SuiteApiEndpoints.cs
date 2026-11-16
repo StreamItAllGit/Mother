@@ -33,7 +33,7 @@ public static class SuiteApiEndpoints
         app.MapGet("/api/v1/suite/apps", () => Results.Ok(new
         {
             suiteId = "mother",
-            testMode = runtime.Paths.Options.TestMode,
+            isolatedMode = runtime.Paths.IsIsolatedOverride,
             apps = runtime.Supervisor.GetSnapshots()
         }));
 
@@ -127,7 +127,7 @@ public static class SuiteApiEndpoints
                 body?.Slug ?? "doctor-test-alert",
                 body?.Title ?? "Suite Test Notification",
                 body?.Description ?? "Dispatched via Mother Suite diagnostic endpoint.",
-                new { testMode = runtime.Paths.Options.TestMode },
+                new { isolatedMode = runtime.Paths.IsIsolatedOverride },
                 ctx.RequestAborted);
             return Results.Ok(new { notification = rec });
         });
@@ -236,10 +236,10 @@ public static class SuiteApiEndpoints
             appId = "mother",
             name = "Mother",
             version = runtime.Version,
-            sdkVersion = "0.4.0",
+            sdkVersion = "0.4.1-hf.1",
             brandAccent = "#38bdf8",
             port = runtime.ResolveListenPort(),
-            testMode = runtime.Paths.Options.TestMode,
+            isolatedMode = runtime.Paths.IsIsolatedOverride,
             capabilities = new[] { "fleet-supervisor", "cold-wake-proxy", "traffic-cop", "coexistence-arbitrator", "power-coordinator", "doctor" },
             suiteManifestLoaded = suiteDoc is not null,
             registeredAppIds = runtime.Manifests.GetAll().Select(m => m.AppId).ToArray()

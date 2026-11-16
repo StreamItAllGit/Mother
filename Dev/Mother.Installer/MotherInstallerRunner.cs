@@ -52,24 +52,25 @@ internal static class MotherInstallerRunner
         if (HasFlag(args, "--help") || HasFlag(args, "-h") || HasFlag(args, "/?"))
         {
             Console.WriteLine($"Mother Setup v{version}");
-            Console.WriteLine("Usage: Mother-Setup.exe [--install-dir <dir>] [--suite-dir <dir>] [--profile <lightweight|full>] [--migrate-legacy] [--silent] [--headless] [--verify] [--uninstall] [--purge-data] [--autostart] [--test-mode] [--dry-run] [--visible-test] [--data-dir <dir>] [--log-dir <dir>]");
+            Console.WriteLine("Usage: Mother-Setup.exe [--install-dir <dir>] [--suite-dir <dir>] [--profile <lightweight|full>] [--migrate-legacy] [--silent] [--verify] [--uninstall] [--purge-data] [--autostart] [--dry-run] [--data-dir <dir>] [--log-dir <dir>]");
             return 0;
         }
 
-        var sandbox = new SandboxEnvironment("mother", args, AppContext.BaseDirectory, "install-config.json");
+        var appEnv = new AppEnvironment("mother", args, AppContext.BaseDirectory, "install-config.json");
+        bool isIsolated = IsIsolatedContext(appEnv);
         string? cliInstallDir = ReadFlagValue(args, "--install-dir");
         string? cliSuiteDir = ReadFlagValue(args, "--suite-dir");
         string? cliProfile = ReadFlagValue(args, "--profile");
         string? cliPayload = ReadFlagValue(args, "--payload");
         bool isUninstall = HasFlag(args, "--uninstall");
         bool isVerify = HasFlag(args, "--verify");
-        bool isSilent = HasFlag(args, "--silent") || sandbox.Headless;
+        bool isSilent = HasFlag(args, "--silent");
         bool purgeData = HasFlag(args, "--purge-data");
         bool autoStart = HasFlag(args, "--autostart");
         bool migrateLegacy = HasFlag(args, "--migrate-legacy");
 
-        InstallerThemeOptions theme = BuildOptions(sandbox, version, cliSuiteDir);
-        var coreEngine = new InstallerEngineCore(theme, sandbox);
+        InstallerThemeOptions theme = BuildOptions(appEnv, version, cliSuiteDir);
+        var coreEngine = new InstallerEngineCore(theme, appEnv);
 
         if (isVerify)
         {
@@ -82,13 +83,14 @@ internal static class MotherInstallerRunner
         {
             if (isUninstall)
             {
-                FoundationInstallResult ures = ExecuteUninstall(coreEngine, sandbox, cliInstallDir, purgeData);
+                FoundationInstallResult ures = ExecuteUninstall(coreEngine, appEnv, isIsolated, cliInstallDir, purgeData);
                 Console.WriteLine(ures.Message);
                 return ures.Success ? 0 : 1;
             }
 
             FoundationInstallResult res = ExecuteInstallAsync(
                 coreEngine,
+                isIsolated,
                 payloadAssembly,
                 cliPayload,
                 cliInstallDir,
@@ -116,11 +118,12 @@ internal static class MotherInstallerRunner
             {
                 if (isUninstall)
                 {
-                    return Task.FromResult(ExecuteUninstall(coreEngine, sandbox, wizard?.InstallDirTextBox.Text.Trim() ?? cliInstallDir, purgeData));
+                    return Task.FromResult(ExecuteUninstall(coreEngine, appEnv, isIsolated, wizard?.InstallDirTextBox.Text.Trim() ?? cliInstallDir, purgeData));
                 }
 
                 return ExecuteInstallAsync(
                     coreEngine,
+                    isIsolated,
                     payloadAssembly,
                     cliPayload,
                     wizard?.InstallDirTextBox.Text.Trim() ?? cliInstallDir,
@@ -132,23 +135,17 @@ internal static class MotherInstallerRunner
                     onProgress: progress,
                     ct: ct);
             },
-            showShowcaseAutoCloseMs: sandbox.VisibleTest ? 3000 : 0,
             initialProfileId: cliProfile,
             initialSecondaryDir: cliSuiteDir,
             initialMigrateLegacy: migrateLegacy);
-
-        if (sandbox.VisibleTest)
-        {
-            MotherInstallerIntegration.HookVisibleTestCapture(wizard, sandbox.LogDirectory);
-        }
 
         Application.Run(wizard);
         return wizard.ExitCode;
     }
 
-    public static InstallerThemeOptions BuildOptions(SandboxEnvironment sandbox, string version, string? suiteDirOverride = null)
+    public static InstallerThemeOptions BuildOptions(AppEnvironment appEnv, string version, string? suiteDirOverride = null)
     {
-        string defaultInstallDir = ResolveMotherDefaultInstallDir(sandbox);
+        string defaultInstallDir = ResolveMotherDefaultInstallDir(appEnv);
         string defaultSuiteDir = !string.IsNullOrWhiteSpace(suiteDirOverride)
             ? Path.GetFullPath(suiteDirOverride.Trim())
             : (Path.GetDirectoryName(defaultInstallDir) ?? defaultInstallDir);
@@ -184,11 +181,11 @@ internal static class MotherInstallerRunner
         };
     }
 
-    public static string ResolveMotherDefaultInstallDir(SandboxEnvironment sandbox)
+    public static string ResolveMotherDefaultInstallDir(AppEnvironment appEnv)
     {
-        if (sandbox.IsContainedSandbox)
+        if (IsIsolatedContext(appEnv))
         {
-            return Path.Combine(sandbox.DataDirectory, "installed-app");
+            return Path.Combine(appEnv.DataDirectory, "installed-app");
         }
 
         string? motherHome = Environment.GetEnvironmentVariable("MOTHER_HOME");
@@ -213,6 +210,7 @@ internal static class MotherInstallerRunner
 
     private static async Task<FoundationInstallResult> ExecuteInstallAsync(
         InstallerEngineCore engine,
+        bool isIsolated,
         Assembly payloadAssembly,
         string? externalPayloadPath,
         string? installDir,
@@ -240,18 +238,18 @@ internal static class MotherInstallerRunner
             ? Path.GetFullPath(suiteDir.Trim())
             : (Path.GetDirectoryName(result.InstallDirectory) ?? result.InstallDirectory);
 
-        if (engine.Sandbox.IsContainedSandbox && !string.IsNullOrWhiteSpace(suiteDir))
+        if (isIsolated && !string.IsNullOrWhiteSpace(suiteDir))
         {
-            string root = SandboxEnvironment.ResolveSiblingSandboxRoot(engine.Sandbox.DataDirectory) ?? engine.Sandbox.DataDirectory;
-            SandboxEnvironment.AssertPathContained(normalizedSuiteDir, root);
+            string root = ResolveIsolatedContainmentRoot(engine.RuntimeEnvironment.DataDirectory) ?? engine.RuntimeEnvironment.DataDirectory;
+            AppEnvironment.AssertPathContained(normalizedSuiteDir, root);
         }
 
-        if (!engine.Sandbox.DryRun)
+        if (!engine.RuntimeEnvironment.DryRun)
         {
             MotherInstallerIntegration.CopyUninstallerSelf(result.InstallDirectory);
             var plan = MotherInstallerIntegration.PlanLivePostInstallActions(
-                engine.Sandbox.IsContainedSandbox,
-                engine.Sandbox.DryRun,
+                isIsolated,
+                engine.RuntimeEnvironment.DryRun,
                 OperatingSystem.IsWindows(),
                 createShortcuts,
                 autoStart);
@@ -270,7 +268,7 @@ internal static class MotherInstallerRunner
                     legacyPath,
                     result.InstallDirectory,
                     optInConfirmed: true,
-                    dryRun: engine.Sandbox.DryRun,
+                    dryRun: engine.RuntimeEnvironment.DryRun,
                     ct).ConfigureAwait(false);
             }
         }
@@ -296,19 +294,20 @@ internal static class MotherInstallerRunner
 
     internal static FoundationInstallResult ExecuteUninstall(
         InstallerEngineCore coreEngine,
-        SandboxEnvironment sandbox,
+        AppEnvironment appEnv,
+        bool isIsolated,
         string? installDir,
         bool purgeData)
     {
-        if (sandbox.DryRun)
+        if (appEnv.DryRun)
         {
             string target = string.IsNullOrWhiteSpace(installDir)
                 ? coreEngine.Theme.DefaultInstallDir
                 : Path.GetFullPath(installDir.Trim());
-            if (sandbox.IsContainedSandbox)
+            if (isIsolated)
             {
-                string boundary = SandboxEnvironment.ResolveSiblingSandboxRoot(sandbox.DataDirectory) ?? sandbox.DataDirectory;
-                target = SandboxEnvironment.AssertPathContained(target, boundary);
+                string boundary = ResolveIsolatedContainmentRoot(appEnv.DataDirectory) ?? appEnv.DataDirectory;
+                target = AppEnvironment.AssertPathContained(target, boundary);
             }
             return new FoundationInstallResult(
                 true,
@@ -320,8 +319,28 @@ internal static class MotherInstallerRunner
         }
 
         FoundationInstallResult ures = coreEngine.Uninstall(installDir, purgeData);
-        MotherInstallerIntegration.RemoveShortcutsIfLive(sandbox);
+        MotherInstallerIntegration.RemoveShortcutsIfLive(appEnv, isIsolated);
         return ures;
+    }
+
+    internal static bool IsIsolatedContext(AppEnvironment appEnv) =>
+        string.Equals(Environment.GetEnvironmentVariable("APP_ISOLATED_TEST"), "1", StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(
+            Path.GetFullPath(appEnv.DataDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(Path.Combine(appEnv.BaseDirectory, "data")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+
+    internal static string? ResolveIsolatedContainmentRoot(string dataDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(dataDirectory)) return null;
+        string full = Path.GetFullPath(dataDirectory.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!string.Equals(Path.GetFileName(full), "data", StringComparison.OrdinalIgnoreCase))
+            return null;
+        string? parent = Directory.GetParent(full)?.FullName;
+        if (string.IsNullOrWhiteSpace(parent)) return null;
+        string normParent = parent.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string normTemp = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return string.Equals(normParent, normTemp, StringComparison.OrdinalIgnoreCase) ? null : normParent;
     }
 
     private static bool HasFlag(IReadOnlyList<string> args, string flagName) =>

@@ -1,5 +1,5 @@
 // @module: Mother.Tests.V020FeaturesTests
-// @purpose: Verifies Mother v0.2.0 sibling containment, schedule/command manifest parsing, WorkerArgs builder, scheduler deferral, idle hibernation, subpath proxy, terminal commands, and InstallerEngineCore options.
+// @purpose: Verifies Mother sibling root containment, schedule/command manifest parsing, WorkerArgs builder, scheduler deferral, idle hibernation, subpath proxy, terminal commands, and InstallerEngineCore options.
 // @depends-on: System, System.Collections.Generic, System.IO, System.IO.Compression, System.Net, System.Net.Http, System.Net.Sockets, System.Text, System.Text.Json, System.Threading.Tasks, Microsoft.AspNetCore.Builder, Foundation.Core, Mother.Core, Mother.Core.Configuration, Mother.Core.Contracts, Mother.Core.Features.Discovery, Mother.Core.Features.Supervision, Mother.Installer, Mother.Server, Xunit
 // @exports: V020FeaturesTests
 
@@ -30,25 +30,23 @@ namespace Mother.Tests;
 public sealed class V020FeaturesTests
 {
     [Fact]
-    public void PathResolver_SiblingSandboxRootAllowsSiblingAndRejectsHostEscape()
+    public void PathResolver_SiblingIsolatedRootAllowsSiblingAndRejectsHostEscape()
     {
         string tempRoot = Path.Combine(Path.GetTempPath(), $"mother-sib-{Guid.NewGuid():N}");
-        string sandboxRoot = Path.Combine(tempRoot, "Sandbox");
-        string dataDir = Path.Combine(sandboxRoot, "data");
-        string appDir = Path.Combine(sandboxRoot, "app");
-        string siblingGreenroom = Path.Combine(sandboxRoot, "sister-apps", "greenroom");
+        string isolatedRoot = Path.Combine(tempRoot, "IsolatedRoot");
+        string dataDir = Path.Combine(isolatedRoot, "data");
+        string appDir = Path.Combine(isolatedRoot, "app");
+        string siblingGreenroom = Path.Combine(isolatedRoot, "sister-apps", "greenroom");
         string hostEscape = Path.Combine(tempRoot, "outside-host");
-
         Directory.CreateDirectory(dataDir);
         Directory.CreateDirectory(appDir);
         Directory.CreateDirectory(siblingGreenroom);
         Directory.CreateDirectory(hostEscape);
-
         try
         {
-            var resolver = new PathResolver(new[] { "--test-mode", "--data-dir", dataDir }, appDir);
-            Assert.Equal(Path.GetFullPath(siblingGreenroom), resolver.AssertContainedIfSandbox(siblingGreenroom));
-            Assert.Throws<InvalidOperationException>(() => resolver.AssertContainedIfSandbox(hostEscape));
+            var resolver = new PathResolver(new[] { "--data-dir", dataDir }, appDir);
+            Assert.Equal(Path.GetFullPath(siblingGreenroom), resolver.AssertContainedIfIsolated(siblingGreenroom));
+            Assert.Throws<InvalidOperationException>(() => resolver.AssertContainedIfIsolated(hostEscape));
         }
         finally
         {
@@ -62,29 +60,11 @@ public sealed class V020FeaturesTests
     {
         const string json = """
         {
-          "schemaVersion": 2,
-          "appId": "greenroom",
-          "name": "Greenroom",
-          "version": "0.2.0",
-          "residencyMode": "on-demand",
-          "commands": {
-            "startDaemon": "python -m greenroom companion --quiet",
-            "statusCheck": "python -m greenroom status"
-          },
-          "schedules": [
-            {
-              "scheduleId": "plex-sync",
-              "name": "Nightly Plex Sync",
-              "cadence": "daily",
-              "timeUtc": "04:15",
-              "runIfMissed": true,
-              "targetDrives": ["D:\\"],
-              "triggerEndpoint": "/api/v1/plex/sync"
-            }
-          ]
+          "schemaVersion": 2, "appId": "greenroom", "name": "Greenroom", "version": "0.2.0-hf.1", "residencyMode": "on-demand",
+          "commands": { "startDaemon": "python -m greenroom companion --quiet", "statusCheck": "python -m greenroom status" },
+          "schedules": [{ "scheduleId": "plex-sync", "name": "Nightly Plex Sync", "cadence": "daily", "timeUtc": "04:15", "runIfMissed": true, "targetDrives": ["D:\\"], "triggerEndpoint": "/api/v1/plex/sync" }]
         }
         """;
-
         SisterAppEntry? entry = ManifestParser.Parse("greenroom.manifest.json", json);
         Assert.NotNull(entry);
         Assert.Equal("cold", entry!.ResidencyMode);
@@ -96,42 +76,33 @@ public sealed class V020FeaturesTests
     }
 
     [Fact]
-    public void WorkerLaunchCommandBuilder_UsesWorkerArgsAndValidatesSandboxWorkingDir()
+    public void WorkerLaunchCommandBuilder_UsesWorkerArgsAndValidatesIsolatedWorkingDir()
     {
         using var scope = new TempWorkspaceScope();
-        var resolver = new PathResolver(new[] { "--test-mode", "--data-dir", scope.DataDir }, scope.BaseDir);
-
+        var resolver = new PathResolver(new[] { "--data-dir", scope.DataDir }, scope.BaseDir);
         string installDir = Path.Combine(scope.ProgramsDir, "greenroom");
         Directory.CreateDirectory(installDir);
         string workerBat = Path.Combine(installDir, "worker.bat");
         File.WriteAllText(workerBat, "@echo off\r\n");
-
         var manifest = new SisterAppEntry
         {
-            AppId = "greenroom",
-            Name = "Greenroom",
-            InstallDir = installDir,
-            Executable = "worker.bat",
-            WorkerArgs = new[] { "--worker-tag", "alpha" },
-            InternalPort = 8420,
-            SandboxPort = 15420
+            AppId = "greenroom", Name = "Greenroom", InstallDir = installDir, Executable = "worker.bat",
+            WorkerArgs = new[] { "--worker-tag", "alpha" }, InternalPort = 8420
         };
-
-        var psi = WorkerLaunchCommandBuilder.BuildStartInfo(manifest, resolver, 15420, 15100, out string exe, out string reason);
+        var psi = WorkerLaunchCommandBuilder.BuildStartInfo(manifest, resolver, 8420, 5100, out string exe, out string reason);
         Assert.NotNull(psi);
         Assert.Equal(workerBat, exe);
         Assert.Equal(string.Empty, reason);
         Assert.Equal(installDir, psi!.WorkingDirectory);
         Assert.Contains("--worker-tag", psi.ArgumentList);
         Assert.Contains("--managed-by-mother", psi.ArgumentList);
-        Assert.Contains("15420", psi.ArgumentList);
+        Assert.Contains("8420", psi.ArgumentList);
         Assert.Equal("1", psi.Environment["MANAGED_BY_SUITE"]);
-        Assert.Equal("http://127.0.0.1:15100", psi.Environment["MOTHER_GATEWAY_URL"]);
-
+        Assert.Equal("http://127.0.0.1:5100", psi.Environment["MOTHER_GATEWAY_URL"]);
         string outsideDir = Path.Combine(Path.GetTempPath(), $"escape-{Guid.NewGuid():N}");
         var escapedManifest = manifest with { InstallDir = outsideDir, Executable = "outside.exe" };
         Assert.Throws<InvalidOperationException>(() =>
-            WorkerLaunchCommandBuilder.BuildStartInfo(escapedManifest, resolver, 15420, 15100, out _, out _));
+            WorkerLaunchCommandBuilder.BuildStartInfo(escapedManifest, resolver, 8420, 5100, out _, out _));
     }
 
     [Fact]
@@ -203,7 +174,7 @@ public sealed class V020FeaturesTests
           "executable": "sleep-worker.bat",
           "residencyMode": "cold",
           "idleTimeoutMinutes": 5,
-          "sandboxPort": {{GetFreeTcpPort()}}
+          "internalPort": {{GetFreeTcpPort()}}
         }
         """);
 
@@ -260,8 +231,7 @@ public sealed class V020FeaturesTests
           "schemaVersion": 2,
           "appId": "greenroom",
           "name": "Greenroom",
-          "internalPort": 8420,
-          "sandboxPort": {{upstreamPort}},
+          "internalPort": {{upstreamPort}},
           "residencyMode": "warm"
         }
         """);
@@ -343,8 +313,8 @@ public sealed class V020FeaturesTests
     public void MotherInstallerRunner_BuildOptionsAndDryRunMigrateLegacyWork()
     {
         using var scope = new TempWorkspaceScope();
-        var sandbox = new SandboxEnvironment("mother", new[] { "--test-mode", "--data-dir", scope.DataDir }, scope.BaseDir, "install-config.json");
-        var theme = MotherInstallerRunner.BuildOptions(sandbox, "0.2.0");
+        var appEnv = new AppEnvironment("mother", new[] { "--data-dir", scope.DataDir }, scope.BaseDir, "install-config.json");
+        var theme = MotherInstallerRunner.BuildOptions(appEnv, "0.2.0-hf.1");
 
         Assert.Equal("StreamItAll", theme.StudioName);
         Assert.Equal("Mother", theme.SuiteName);
@@ -363,7 +333,7 @@ public sealed class V020FeaturesTests
         string targetDir = Path.Combine(scope.DataDir, "umbrella-install");
         int code = Mother.Installer.Program.Main(new[]
         {
-            "--test-mode", "--silent", "--dry-run", "--headless", "--migrate-legacy",
+            "--silent", "--dry-run", "--migrate-legacy", "--data-dir", scope.DataDir,
             "--payload", payloadZip, "--install-dir", targetDir
         });
         Assert.Equal(0, code);
@@ -373,30 +343,30 @@ public sealed class V020FeaturesTests
         File.WriteAllText(canaryExe, "keep-me");
         int dryUninstallCode = Mother.Installer.Program.Main(new[]
         {
-            "--test-mode", "--silent", "--uninstall", "--dry-run", "--headless",
+            "--silent", "--uninstall", "--dry-run", "--data-dir", scope.DataDir,
             "--install-dir", targetDir
         });
         Assert.Equal(0, dryUninstallCode);
         Assert.True(File.Exists(canaryExe), "--uninstall --dry-run must preserve installed files");
 
-        string siblingInstallDir = Path.Combine(scope.RootDir, "Sandbox", "installed", "Mother");
+        string siblingInstallDir = Path.Combine(scope.RootDir, "IsolatedRoot", "installed", "Mother");
         Directory.CreateDirectory(siblingInstallDir);
         string siblingAppDir = Path.Combine(siblingInstallDir, "app");
         Directory.CreateDirectory(siblingAppDir);
         string siblingCanary = Path.Combine(siblingAppDir, "Mother.App.exe");
         File.WriteAllText(siblingCanary, "keep-sibling");
-        string siblingDataDir = Path.Combine(scope.RootDir, "Sandbox", "data");
+        string siblingDataDir = Path.Combine(scope.RootDir, "IsolatedRoot", "data");
         Directory.CreateDirectory(siblingDataDir);
         int siblingUninstallCode = Mother.Installer.Program.Main(new[]
         {
-            "--test-mode", "--silent", "--uninstall", "--dry-run", "--headless",
+            "--silent", "--uninstall", "--dry-run",
             "--data-dir", siblingDataDir, "--install-dir", siblingInstallDir
         });
         Assert.Equal(0, siblingUninstallCode);
-        Assert.True(File.Exists(siblingCanary), "Sibling sandbox --uninstall --dry-run must succeed without escaping");
+        Assert.True(File.Exists(siblingCanary), "Sibling isolated --uninstall --dry-run must succeed without escaping");
 
         var noShortcutsPlan = MotherInstallerIntegration.PlanLivePostInstallActions(
-            isContainedSandbox: false,
+            suppressHostMutations: false,
             dryRun: false,
             isWindows: true,
             createShortcuts: false,

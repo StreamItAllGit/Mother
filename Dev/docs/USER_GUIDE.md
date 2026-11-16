@@ -1,6 +1,6 @@
 # Mother — End-User Manual & Fleet Supervisor Guide (`USER_GUIDE.md`)
 
-> **Active Baseline Version:** `v0.2.0` (`MPL-2.0` — Next Horizon: `v0.2.1`) | **Full SemVer (`MAJOR.MINOR.PATCH`)** | **SDK Pin:** `Foundation v0.4.0`
+> **Active Baseline Version:** `v0.2.0-hf.1` (`MPL-2.0` — Next Horizon: `v0.2.1`) | **Full SemVer (`MAJOR.MINOR.PATCH[-hf.N]`)** | **SDK Pin:** `Foundation v0.4.1-hf.1`
 
 Welcome to the **`Mother`** User Guide. This manual explains what `Mother` (`:5100`) does, how to install and upgrade it inside your `StreamItAll\Mother` suite umbrella, how to launch it via CLI or tray, how to navigate its Titanium Sky (`#38bdf8`) single-window shell, and how to supervise, schedule, and align all six sister applications (**Housekeeping**, **ShadowLibrary**, **Redroom**, **Greenroom**, **StreamEngine**, and **legacy-sister-app**).
 
@@ -20,11 +20,11 @@ Welcome to the **`Mother`** User Guide. This manual explains what `Mother` (`:51
 
 ---
 
-## 2. Installation, Upgrading & Uninstalling (`Mother-Setup-v0.2.0-win-x64.exe`)
+## 2. Installation, Upgrading & Uninstalling (`Mother-Setup-v0.2.0-hf.1-win-x64.exe`)
 
 ### 2.1 Standalone Installation
-1. Launch **`Mother-Setup-v0.2.0-win-x64.exe`**.
-2. The **4-Pillar Dark Setup Wizard** (`650x434` compact / `650x544` details, Titanium Sky `#38bdf8`, powered by `Foundation v0.4.0` `InstallerEngineCore`) opens:
+1. Launch **`Mother-Setup-v0.2.0-hf.1-win-x64.exe`**.
+2. The **4-Pillar Dark Setup Wizard** (`650x434` compact / `650x544` details, Titanium Sky `#38bdf8`, powered by `Foundation v0.4.1-hf.1` `InstallerEngineCore`) opens:
    - **Destination Folder:** Defaults to `%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\` (Clean Release Root: `Mother.exe`, `AGENTS.md`, `LICENSE`, `app\`, `scripts\`).
    - **Shared Suite Umbrella Directory (`--suite-dir`):** Defaults to `%LOCALAPPDATA%\Programs\StreamItAll\Mother\` where installed sister applications reside beside `Mother\`.
    - **Install Profile (`--profile`):** Choose **`full`** (Full Suite Host with bundled Web UI & scripts) or **`lightweight`** (Core suite gateway & supervisor only).
@@ -35,7 +35,7 @@ Welcome to the **`Mother`** User Guide. This manual explains what `Mother` (`:51
 ### 2.2 Upgrading & Uninstalling
 - **Upgrading:** Running a newer `Mother-Setup-v<Version>-win-x64.exe` over an existing install detects the installation, creates a pre-upgrade backup under `backups\`, replaces only `app\` and `scripts\`, and preserves `manifests\`, `data\`, `logs\`, and your 20-snapshot config history.
 - **Uninstalling:** Run `Mother-Uninstall.exe` in your installation directory (or use Windows *Installed Apps*). Your `data\` and `logs\` directories are preserved by default unless you explicitly enable destructive purge (`--purge-data`).
-- **Automated Installer Flags:** Supports `--silent`, `--headless`, `--verify`, `--uninstall`, `--purge-data`, `--dry-run`, `--install-dir <dir>`, `--suite-dir <dir>`, `--profile <lightweight|full>`, `--migrate-legacy`, `--autostart`, `--visible-test`, `--test-mode`, `--data-dir <dir>`, and `--log-dir <dir>`.
+- **Automated Installer Flags:** Supports `--silent`, `--quiet`, `--verify`, `--uninstall`, `--purge-data`, `--dry-run`, `--install-dir <dir>`, `--suite-dir <dir>`, `--profile <lightweight|full>`, `--migrate-legacy`, `--autostart`, `--data-dir <dir>`, and `--log-dir <dir>`.
 
 ### 2.3 Sister-App Co-Bootstrapping
 When sister-app installers register `<app-id>.manifest.json` in `%LOCALAPPDATA%\Programs\StreamItAll\Mother\manifests\` (or install directly inside `StreamItAll\Mother\<AppName>\`) and call `POST /api/v1/suite/apps/reload` (or when you click **`Reload Manifests`** in `Fleet Overview` or type `reload` in the docked terminal), `Mother` adds or updates those tabs without restarting running daemons.
@@ -57,7 +57,7 @@ When `Mother.exe` starts (`http://127.0.0.1:5100/`):
 
 ---
 
-## 4. Dashboard & Interface Tour (`v0.2.0` Controls)
+## 4. Dashboard & Interface Tour (`v0.2.0-hf.1` Controls)
 
 `Mother`'s interface uses **two orthogonal navigation axes** so outer suite controls never collide with inner sister-app sidebars:
 
@@ -65,7 +65,7 @@ When `Mother.exe` starts (`http://127.0.0.1:5100/`):
 | Control / Element | Hotkey | What It Does |
 | :--- | :---: | :--- |
 | **Outer Suite Tab Strip** (`Mother` + discovered sister apps) | `Alt+1` .. `Alt+7` | `Alt+1` shows Mother's Control Hub; `Alt+2`..`Alt+7` switch to each sister app's embedded frame (`/app/<appId>/`, auto-redirected from `/app/<appId>` via `307`) with `Wake App` / `Open Standalone` controls. |
-| **Status Chips (`PROD` / `SANDBOX`, `STAY AWAKE` / `SLEEP <N>S`)** | — | Displays live containment mode and current Post-Run Power policy or active countdown timer. |
+| **Status Chips (`PROD` / `ISOLATED`, `STAY AWAKE` / `SLEEP <N>S`)** | — | Displays live execution mode and current Post-Run Power policy or active countdown timer. |
 | **`QR` Button** | — | Opens the **Slide-Over Right Drawer** with an offline SVG QR code (`100.64.0.0/10` Tailscale CGNAT / local URL) for mobile PWA pairing. |
 | **`Stop All` Button** | — | Emergency stop: broadcasts `POST /api/v1/suite/jobs/stop-all` across all running sister workers and cancels any active power countdown. |
 

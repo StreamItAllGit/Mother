@@ -2,10 +2,9 @@
   "schema_version": 1,
   "app_id": "mother",
   "display_name": "Mother",
-  "version": "0.2.0",
-  "sdk_version": "0.4.0",
+  "version": "0.2.0-hf.1",
+  "sdk_version": "0.4.1-hf.1",
   "port": 5100,
-  "sandbox_port": 15100,
   "brand_accent": "#38bdf8",
   "health_endpoint": "/api/v1/suite/health",
   "capabilities": ["suite-daemon", "reverse-proxy", "traffic-cop", "coexistence-broker", "power-coordinator", "watchdog", "doctor"]

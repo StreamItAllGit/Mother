@@ -1,5 +1,5 @@
 // @module: Mother.Core.Features.Supervision.WatchdogSchedulerService
-// @purpose: Manages \Mother_Watchdog Windows Task Scheduler registration via ArgumentList; strictly simulated/no-op in --test-mode and --dry-run.
+// @purpose: Manages \Mother_Watchdog Windows Task Scheduler registration via ArgumentList; strictly simulated/no-op in isolated and --dry-run modes.
 // @depends-on: System, System.Diagnostics, System.IO, Mother.Core.Configuration, Mother.Core.Diagnostics
 // @exports: WatchdogSchedulerService
 
@@ -17,7 +17,7 @@ public sealed class WatchdogSchedulerService
     private readonly PathResolver _paths;
     private readonly MotherDiagnostics _diag;
 
-    public bool IsSimulated => _paths.Options.TestMode || _paths.Options.DryRun || _paths.Sandbox.IsContainedSandbox;
+    public bool IsSimulated => _paths.IsIsolatedOverride || _paths.Options.DryRun;
     public bool SimulatedRegisteredState { get; private set; }
 
     public WatchdogSchedulerService(PathResolver paths, MotherDiagnostics diag)
@@ -58,7 +58,7 @@ public sealed class WatchdogSchedulerService
         if (IsSimulated)
         {
             SimulatedRegisteredState = true;
-            message = $"[SIMULATED] {TaskName} registration skipped in contained/test-mode.";
+            message = $"[SIMULATED] {TaskName} registration skipped in isolated/dry-run mode.";
             _diag.Log("INFO", "mother", "Watchdog", message);
             return true;
         }

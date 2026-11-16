@@ -13,7 +13,7 @@ namespace Mother.Tests;
 public sealed class PowerWatchdogAndDoctorTests
 {
     [Fact]
-    public void PowerCoordinator_IsSimulatedInTestModeAndSupportsCountdownCancel()
+    public void PowerCoordinator_IsSimulatedInIsolatedModeAndSupportsCountdownCancel()
     {
         using var scope = new TempWorkspaceScope();
         using var runtime = scope.CreateRuntime();
@@ -29,16 +29,16 @@ public sealed class PowerWatchdogAndDoctorTests
         var busyApp = new[]
         {
             new SisterAppRuntimeDto(
-                "housekeeping", "HouseKeeping", "1.0.0", "#f59e0b", 5178, 15178, 15178,
-                "warm", "online", true, 123, 1, 0, 0, false, "http://127.0.0.1:15178/",
+                "housekeeping", "HouseKeeping", "1.0.0", "#f59e0b", 5178, 5178,
+                "warm", "online", true, 123, 1, 0, 0, false, "http://127.0.0.1:5178/",
                 System.Array.Empty<string>(), System.Array.Empty<string>(), System.Array.Empty<string>(),
                 System.Array.Empty<string>(), null, null)
         };
         var idleApp = new[]
         {
             new SisterAppRuntimeDto(
-                "housekeeping", "HouseKeeping", "1.0.0", "#f59e0b", 5178, 15178, 15178,
-                "warm", "online", true, 123, 0, 0, 0, false, "http://127.0.0.1:15178/",
+                "housekeeping", "HouseKeeping", "1.0.0", "#f59e0b", 5178, 5178,
+                "warm", "online", true, 123, 0, 0, 0, false, "http://127.0.0.1:5178/",
                 System.Array.Empty<string>(), System.Array.Empty<string>(), System.Array.Empty<string>(),
                 System.Array.Empty<string>(), null, null)
         };
@@ -47,7 +47,7 @@ public sealed class PowerWatchdogAndDoctorTests
         runtime.Power.EvaluateTick(idleApp, liveLockCount: 0, watchdogRegistered: true, nowUtcOverride: t0.AddSeconds(1));
         var status = runtime.Power.EvaluateTick(idleApp, liveLockCount: 0, watchdogRegistered: true, nowUtcOverride: t0.AddSeconds(7));
 
-        Assert.True(status.TestModeSimulated);
+        Assert.True(status.Simulated);
         Assert.True(status.CountdownActive);
 
         var cancelled = runtime.Power.CancelCountdown();
@@ -56,7 +56,7 @@ public sealed class PowerWatchdogAndDoctorTests
     }
 
     [Fact]
-    public void WatchdogScheduler_SimulatesRegistrationInSandboxWithoutTouchingWindowsTaskScheduler()
+    public void WatchdogScheduler_SimulatesRegistrationInIsolatedModeWithoutTouchingWindowsTaskScheduler()
     {
         using var scope = new TempWorkspaceScope();
         using var runtime = scope.CreateRuntime();

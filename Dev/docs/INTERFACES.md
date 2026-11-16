@@ -1,8 +1,8 @@
 # Mother — Single-API Gateway Reference, Manifests & File Contracts (`INTERFACES.md`)
 
-> **Active Baseline Version:** `v0.2.0` (`MPL-2.0`) | **Full SemVer (`MAJOR.MINOR.PATCH`)** | **SDK Pin:** `Foundation v0.4.0`
+> **Active Baseline Version:** `v0.2.0-hf.1` (`MPL-2.0`) | **Full SemVer (`MAJOR.MINOR.PATCH[-hf.N]`)** | **SDK Pin:** `Foundation v0.4.1-hf.1`
 
-This reference manual documents the authentication and transport boundaries, the Single Public API Gateway (`/api/v1/suite/*`, `/api/v1/scheduler/defer`, `/api/v1/apps/<app-id>/*`, and `/app/<app-id>/` on `:5100` / `:15100`), real-time SSE streams, MCP proxy contracts, CLI subcommands and deterministic exit codes, file contracts (`suite.manifest.json` `v2`, `mother.manifest.json` `v1`, `.coexistence.json`, `.hklock`, `.hash`), SQLite/DTO schemas, and sister-app compatibility rules for **`Mother`** ([`<WORKSPACE_ROOT>/Mother\`](file:///<WORKSPACE_ROOT>/Mother/)).
+This reference manual documents the authentication and transport boundaries, the Single Public API Gateway (`/api/v1/suite/*`, `/api/v1/scheduler/defer`, `/api/v1/apps/<app-id>/*`, and `/app/<app-id>/` on `:5100`), real-time SSE streams, MCP proxy contracts, CLI subcommands and deterministic exit codes, file contracts (`suite.manifest.json` `v2`, `mother.manifest.json` `v1`, `.coexistence.json`, `.hklock`, `.hash`), SQLite/DTO schemas, and sister-app compatibility rules for **`Mother`** ([`<WORKSPACE_ROOT>/Mother\`](file:///<WORKSPACE_ROOT>/Mother/)).
 
 ---
 
@@ -20,13 +20,13 @@ This reference manual documents the authentication and transport boundaries, the
 
 ## 2. REST API Reference `/api/v1/*`
 
-### 2.1 Suite-Level Gateway & Scheduler Endpoints (`:5100` / Sandbox `:15100`)
+### 2.1 Suite-Level Gateway & Scheduler Endpoints (`:5100`)
 
 | HTTP Method & Route | Request Body (`camelCase`) | Response Payload (`camelCase` JSON) | Behavior & Description |
 | :--- | :--- | :--- | :--- |
-| `GET /api/v1/suite/health` *(Alias: `/api/v1/health`)* | — | `{ "status": "ok", "suiteId": "mother", "version": "0.2.0", "sdkVersion": "0.4.0", "pid": 4120, "uptimeSeconds": 120, "testMode": false, "sqliteUserVersion": 1, "registeredApps": 6, "warmApps": 3, "coldApps": 3, "disabledApps": 0 }` | Suite daemon liveness, version, SDK pin (`0.4.0`), SQLite schema version, and residency summary. |
-| `GET /api/v1/suite/manifest` *(Alias: `/api/v1/manifest`)* | — | `{ "schemaVersion": 2, "appId": "mother", "name": "Mother", "version": "0.2.0", "sdkVersion": "0.4.0", "spdxLicense": "MPL-2.0", "brandAccent": "#38bdf8", "port": 5100, "testMode": false, "capabilities": [...], "registeredAppIds": [...] }` | Exposes Mother's suite capability manifest and registered app IDs. |
-| `GET /api/v1/suite/apps` | — | `{ "suiteId": "mother", "testMode": false, "apps": [{ "appId": "housekeeping", "name": "HouseKeeping", "version": "1.0.0", "brandAccent": "#f59e0b", "effectivePort": 5178, "residency": "warm", "state": "stopped", "isOnline": false, "activeJobs": 0, "queuedJobs": 0 }] }` | Lists all installed sister apps discovered across `manifests\*.json`, umbrella siblings, and HKCU metadata. |
+| `GET /api/v1/suite/health` *(Alias: `/api/v1/health`)* | — | `{ "status": "ok", "suiteId": "mother", "version": "0.2.0-hf.1", "sdkVersion": "0.4.1-hf.1", "pid": 4120, "uptimeSeconds": 120, "isolatedMode": false, "sqliteUserVersion": 1, "registeredApps": 6, "warmApps": 3, "coldApps": 3, "disabledApps": 0 }` | Suite daemon liveness, version, SDK pin (`0.4.1-hf.1`), SQLite schema version, and residency summary. |
+| `GET /api/v1/suite/manifest` *(Alias: `/api/v1/manifest`)* | — | `{ "schemaVersion": 2, "appId": "mother", "name": "Mother", "version": "0.2.0-hf.1", "sdkVersion": "0.4.1-hf.1", "brandAccent": "#38bdf8", "port": 5100, "isolatedMode": false, "capabilities": [...], "registeredAppIds": [...] }` | Exposes Mother's suite capability manifest and registered app IDs. |
+| `GET /api/v1/suite/apps` | — | `{ "suiteId": "mother", "isolatedMode": false, "apps": [{ "appId": "housekeeping", "name": "HouseKeeping", "version": "1.0.0", "brandAccent": "#f59e0b", "effectivePort": 5178, "residency": "warm", "state": "stopped", "isOnline": false, "activeJobs": 0, "queuedJobs": 0 }] }` | Lists all installed sister apps discovered across `manifests\*.json`, umbrella siblings, and HKCU metadata. |
 | `POST /api/v1/suite/apps/reload` | `{}` | `{ "reloadedCount": 6, "apps": [...] }` | Hot-reloads `manifests\*.json` and `StreamItAll\Mother\*` installs without restarting running daemons. |
 | `POST /api/v1/suite/apps/{appId}/residency` | `{ "residencyMode": "warm\|cold\|disabled" }` | `{ "app": {...} }` | Updates per-app residency in `data\settings.json` and reconciles child worker lifecycle. |
 | `POST /api/v1/suite/apps/{appId}/wake` | `{}` | `{ "outcome": {...}, "app": {...} }` | Arbitrates coexistence and wakes a `cold` sister app (`409` on conflict, `503` on startup timeout). |
@@ -73,16 +73,16 @@ This reference manual documents the authentication and transport boundaries, the
 
 ```powershell
 Mother.exe [--suite-tab <app-id>] [--window <app-id>] [--browser [<app-id>]] [--tray-only | --minimized]
-Mother.exe --test-mode --headless --data-dir "<WORKSPACE_ROOT>/Mother\Sandbox\data" --log-dir "<WORKSPACE_ROOT>/Mother\Sandbox\logs" [--port 15100] [--diagnose]
-Mother-Setup-v0.2.0-win-x64.exe [--install-dir <dir>] [--suite-dir <dir>] [--profile <lightweight|full>] [--migrate-legacy] [--autostart] [--silent] [--headless] [--verify] [--uninstall [--purge-data]] [--test-mode] [--dry-run] [--visible-test]
+Mother.exe --data-dir "<dir>" --log-dir "<dir>" [--config "<file>"] [--port 5100] [--diagnose]
+Mother-Setup-v0.2.0-hf.1-win-x64.exe [--install-dir <dir>] [--suite-dir <dir>] [--profile <lightweight|full>] [--migrate-legacy] [--autostart] [--silent] [--quiet] [--verify] [--uninstall [--purge-data]] [--dry-run] [--data-dir <dir>] [--log-dir <dir>]
 ```
 
 | Exit Code | Meaning | Trigger Condition |
 | :---: | :--- | :--- |
-| **`0`** | **Success** | Clean user shutdown, successful `--test-mode --headless` self-test, or completed installer run. |
+| **`0`** | **Success** | Clean user shutdown, successful `--diagnose` check, or completed installer run. |
 | **`1`** | **Runtime / Unhandled Exception** | Fatal startup or runtime exception (after writing `logs\crashes\crash_*.json`). |
-| **`2`** | **Validation / Doctor Failure** | Invalid CLI flag, corrupt manifest in `--headless` self-test, or failed `Fleet System Doctor` check. |
-| **`3`** | **Fail-Closed Sandbox Violation** | Attempted access outside allowed `Sandbox\` hierarchy while `--test-mode` is active. |
+| **`2`** | **Validation / Doctor Failure** | Invalid CLI flag, corrupt manifest in doctor check, or failed `Fleet System Doctor` check. |
+| **`3`** | **Isolated Path Containment Violation** | Attempted installation outside an explicit `--data-dir` isolation boundary. |
 | **`130`** | **Clean `SIGINT` / `Ctrl+C` Abort** | Graceful console interrupt (`5s` child drain completed). |
 
 ---
@@ -98,7 +98,7 @@ Placed at `<AppDir>\app\suite.manifest.json` and registered in `manifests\<app-i
   "suiteId": "mother",
   "suiteName": "Mother",
   "minSuiteVersion": "0.1.0",
-  "sdkVersion": "0.4.0",
+  "sdkVersion": "0.4.1-hf.1",
   "suitePort": 5100,
   "appId": "greenroom",
   "name": "Greenroom",
@@ -113,7 +113,6 @@ Placed at `<AppDir>\app\suite.manifest.json` and registered in `manifests\<app-i
   },
   "workerArgs": ["--managed-by-suite", "--suite-id", "mother", "--bind", "127.0.0.1", "--port", "8420"],
   "internalPort": 8420,
-  "sandboxPort": 15420,
   "gatewayBasePath": "/app/greenroom",
   "apiBasePath": "/api/v1/apps/greenroom",
   "residency": {
@@ -180,5 +179,5 @@ Defined in `Dev\migrations\0001_initial_schema.sql`, mapped 1:1 to `camelCase` J
 
 ## 7. Backward Compatibility Notes
 
-1. Full 3-part SemVer (`v0.2.0`, `sdkVersion: "0.4.0"`) lets sister apps compare `minSuiteVersion` reliably.
-2. Partial-suite installations (0..6 apps) work cleanly without missing-app errors, and non-sandbox discovery falls back read-only to legacy `<PROGRAMS_ROOT>/` paths when needed.
+1. Full SemVer (`v0.2.0-hf.1`, `sdkVersion: "0.4.1-hf.1"`) lets sister apps compare `minSuiteVersion` reliably.
+2. Partial-suite installations (0..6 apps) work cleanly without missing-app errors, and discovery falls back read-only to legacy `<PROGRAMS_ROOT>/` paths when running outside `--data-dir` isolation.

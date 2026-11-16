@@ -52,8 +52,7 @@ public sealed class ManifestRegistryService
         }
     }
 
-    public int GetEffectivePort(SisterAppEntry entry) =>
-        _paths.Options.TestMode ? entry.SandboxPort : entry.InternalPort;
+    public int GetEffectivePort(SisterAppEntry entry) => entry.InternalPort;
 
     public IReadOnlyList<SisterAppEntry> Reload()
     {
@@ -135,16 +134,16 @@ public sealed class ManifestRegistryService
             if (string.IsNullOrWhiteSpace(custom)) continue;
             try
             {
-                string resolved = _paths.AssertContainedIfSandbox(custom.Trim());
+                string resolved = _paths.AssertContainedIfIsolated(custom.Trim());
                 if (Directory.Exists(resolved)) scanRoots.Add(resolved);
             }
             catch
             {
-                _diag.Log("WARN", "mother", "Discovery", $"Skipped out-of-sandbox customManifestRoot '{custom}'.");
+                _diag.Log("WARN", "mother", "Discovery", $"Skipped out-of-root customManifestRoot '{custom}'.");
             }
         }
 
-        if (!_paths.Sandbox.IsContainedSandbox)
+        if (!_paths.IsIsolatedOverride)
         {
             AddHostAppDiscoveryPaths(peerDirs, scanRoots);
         }

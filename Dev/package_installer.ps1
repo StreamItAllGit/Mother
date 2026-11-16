@@ -159,9 +159,9 @@ try {
         "# Mother v$Version Release Notes",
         "",
         "## Highlights",
-        "- Foundation SDK v0.4.0 alignment, MPL-2.0 licensing, and StreamItAll\Mother umbrella Clean Release Root",
-        "- WorkerArgs and commands.startDaemon supervision, sibling Sandbox containment, and Cold-Wake schedules[] loop + idle hibernation",
-        "- POST/GET /api/v1/scheduler/defer, /app/{appId} 307 subpath forwarding, and expanded foundation-terminal commands",
+        "- Foundation SDK v0.4.1-hf.1 alignment, MPL-2.0 licensing, and StreamItAll\Mother umbrella Clean Release Root",
+        "- Removed legacy isolated-harness flags in favor of runtime path overrides (`--data-dir`, `--config`, `--log-dir`, `--port`) and isolated unit tests",
+        "- WorkerArgs and commands.startDaemon supervision, isolated root containment, Cold-Wake schedules[] loop, POST/GET /api/v1/scheduler/defer, and /app/{appId} 307 subpath forwarding",
         "",
         "## Verification",
         "- Single-EXE 4-pillar Windows installer with zero-PII Clean Release Root"
@@ -186,13 +186,6 @@ try {
         New-Item -ItemType Directory -Path $LatestDir -Force | Out-Null
         Copy-Item (Join-Path $BundleDir "*") $LatestDir -Recurse -Force
 
-        $VersionArchivePath = Join-Path $ReleasesDir "v$Version.7z"
-        if ($SevenZip) {
-            if (Test-Path $VersionArchivePath) { Remove-Item $VersionArchivePath -Force }
-            & $SevenZip a -mx=9 $VersionArchivePath "$BundleDir\*" | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "7z v$Version.7z archive creation failed." }
-        }
-
         # Standard 03 §6.2: keep up to 2 most recent unpacked full releases
         $fullDirs = @(Get-ChildItem -Path $ReleasesDir -Directory -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -match '^v\d+\.\d+\.\d+$' } |
@@ -203,10 +196,14 @@ try {
     }
 
     $LatestArchivePath = Join-Path $ReleasesDir "Latest.7z"
+    $VersionArchivePath = Join-Path $ReleasesDir "v$Version.7z"
     if ($SevenZip) {
         if (Test-Path $LatestArchivePath) { Remove-Item $LatestArchivePath -Force }
         & $SevenZip a -mx=9 $LatestArchivePath "$LatestDir\*" | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "7z Latest.7z archive creation failed." }
+
+        if (Test-Path $VersionArchivePath) { Remove-Item $VersionArchivePath -Force }
+        Copy-Item -LiteralPath $LatestArchivePath -Destination $VersionArchivePath -Force
     }
 
     Write-Host "Packaged installer ready: $TargetExePath" -ForegroundColor Green

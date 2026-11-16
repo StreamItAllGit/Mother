@@ -47,7 +47,7 @@ public sealed class NotificationDispatcher
             Slug = string.IsNullOrWhiteSpace(slug) ? "suite-alert" : slug.Trim(),
             Title = title,
             Description = description,
-            Status = _paths.Options.TestMode || _paths.Options.DryRun ? "simulated" : "sent",
+            Status = _paths.IsIsolatedOverride || _paths.Options.DryRun ? "simulated" : "sent",
             IsDryRun = _paths.Options.DryRun ? 1 : 0,
             MetadataJson = metaJson,
             CreatedAtUtc = nowUtc,

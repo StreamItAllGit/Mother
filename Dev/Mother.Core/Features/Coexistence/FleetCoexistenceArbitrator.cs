@@ -192,7 +192,7 @@ public sealed class FleetCoexistenceArbitrator
         {
             try
             {
-                string safeRoot = _paths.AssertContainedIfSandbox(root);
+                string safeRoot = _paths.AssertContainedIfIsolated(root);
                 Directory.CreateDirectory(safeRoot);
                 string coexPath = Path.Combine(safeRoot, ".coexistence.json");
                 var payload = new

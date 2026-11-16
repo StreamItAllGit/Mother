@@ -96,7 +96,7 @@ public sealed class SettingsStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(snapshotId);
         string safeFileName = Path.GetFileName(snapshotId.Trim());
-        string fullPath = SandboxEnvironment.AssertPathContained(
+        string fullPath = AppEnvironment.AssertPathContained(
             Path.Combine(_manager.ConfigHistoryDirectory, safeFileName),
             _manager.ConfigHistoryDirectory);
 

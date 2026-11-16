@@ -21,9 +21,12 @@ $Version = (Get-Content (Join-Path $DevRoot "version.txt") -Raw).Trim()
 
 $FoundationCoreDll = Join-Path $DevRoot "lib\Foundation.Core.dll"
 if (-not (Test-Path -LiteralPath $FoundationCoreDll)) {
-    $SdkSync = Join-Path $ProjectsRoot "SharedLibs\Foundation\v0.4.0\tools\sync_foundation_sdk.py"
+    $SdkSync = Join-Path $ProjectsRoot "Personal\Foundation\Dev\tools\sync_foundation_sdk.py"
+    if (-not (Test-Path -LiteralPath $SdkSync)) {
+        $SdkSync = Join-Path $ProjectsRoot "SharedLibs\Foundation\v0.4.1-hf.1\tools\sync_foundation_sdk.py"
+    }
     if (Test-Path -LiteralPath $SdkSync) {
-        Write-Host "[0/3] Syncing Foundation v0.4.0 SDK into Dev\lib\..." -ForegroundColor Cyan
+        Write-Host "[0/3] Syncing Foundation v0.4.1-hf.1 SDK into Dev\lib\..." -ForegroundColor Cyan
         python $SdkSync --sync-consumer $OuterContainer --web-dir "Dev\Mother.Server\wwwroot\vendor\foundation"
         if ($LASTEXITCODE -ne 0) { throw "Foundation SDK sync failed ($LASTEXITCODE)." }
     } else {
@@ -90,7 +93,7 @@ try {
         ""
         '- **Role:** StreamItAll Shared Suite Daemon, Reverse-Proxy Gateway (`127.0.0.1:5100`), Cold-Wake Scheduler & Post-Run Power Coordinator.'
         '- **Clean Release Root:** Launch `Mother.exe` at install root; binaries live under `app\`, batch helpers under `scripts\`, user state under `data\` and `logs\`.'
-        '- **Sandbox Flags:** Pass `--test-mode --data-dir <dir> --log-dir <dir> --port <port>` to isolate all I/O.'
+        '- **Path Overrides:** Pass `--data-dir <dir> --config <file> --log-dir <dir> --port <port>` to isolate runtime I/O.'
         '- **License:** MPL-2.0 (see `LICENSE` / `app\LICENSE`).'
     )
     $RuntimeAgents | Set-Content -Path (Join-Path $StageDir "AGENTS.md") -Encoding UTF8
@@ -124,8 +127,10 @@ try {
         }
     }
 
-    # Remove any accidental .pdb sidecars or nested OS junk from staged output
-    Get-ChildItem $StageDir -Include @("*.pdb", "desktop.ini", "Thumbs.db", "ehthumbs.db", ".DS_Store", "._*") -Recurse -Force -File -ErrorAction SilentlyContinue | Remove-Item -Force
+    # Remove any accidental .pdb sidecars or nested OS junk from staged output (PS 5.1 safe)
+    Get-ChildItem -LiteralPath $StageDir -Recurse -Force -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -eq '.pdb' -or $_.Name -match '^(desktop\.ini.*|Thumbs\.db.*|ehthumbs\.db|\.DS_Store.*|\._.*)$' } |
+        Remove-Item -Force -ErrorAction SilentlyContinue
 
     Write-Host "[3/3] Staging Clean Release Root -> $OutputDir" -ForegroundColor Yellow
     if (Test-Path $OutputDir) { Remove-Item $OutputDir -Recurse -Force }

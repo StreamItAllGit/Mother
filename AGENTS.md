@@ -1,7 +1,7 @@
 # Project Context: Mother (`<WORKSPACE_ROOT>/Mother\`)
 
-- **Role:** Single Shared Suite Daemon (:5100), Telemetry Hub & Watchdog (Tier A Backend, Full SemVer `v0.2.0`, `Foundation v0.4.0`, `MPL-2.0`).
-- **Workspace & Sandbox:** [`Dev\`](file:///<WORKSPACE_ROOT>/Mother/Dev/) (Code/Tests) | [`Sandbox\`](file:///<WORKSPACE_ROOT>/Mother/Sandbox/) (`--test-mode`)
+- **Role:** Single Shared Suite Daemon (:5100), Telemetry Hub & Watchdog (Tier A Backend, Full SemVer `v0.2.0-hf.1`, `Foundation v0.4.1-hf.1`, `MPL-2.0`).
+- **Workspace:** [`Dev\`](file:///<WORKSPACE_ROOT>/Mother/Dev/) (Code, Release & Isolated Tests via `APP_ISOLATED_TEST=1`)
 - **Prod & SDK (Read-Only):** `%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\` (legacy `<PROGRAMS_ROOT>/Mother\`) | [`Foundation\`](file:///<WORKSPACE_ROOT>/Foundation/) (`Dev\lib\`)
 
 ## 1. Root Documentation Quartet & Lifecycle State

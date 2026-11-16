@@ -31,7 +31,7 @@ public sealed record SuiteHealthDto(
     [property: JsonPropertyName("sdkVersion")] string SdkVersion,
     [property: JsonPropertyName("pid")] int Pid,
     [property: JsonPropertyName("uptimeSeconds")] long UptimeSeconds,
-    [property: JsonPropertyName("testMode")] bool TestMode,
+    [property: JsonPropertyName("isolatedMode")] bool IsolatedMode,
     [property: JsonPropertyName("sqliteUserVersion")] int SqliteUserVersion,
     [property: JsonPropertyName("registeredApps")] int RegisteredApps,
     [property: JsonPropertyName("warmApps")] int WarmApps,
@@ -94,7 +94,7 @@ public sealed class MotherRuntime : IDisposable
     }
 
     public int ResolveListenPort() =>
-        Paths.Options.PortOverride ?? (Paths.Options.TestMode ? Settings.GetCurrent().TestModePort : Settings.GetCurrent().Port);
+        Paths.Options.PortOverride ?? Settings.GetCurrent().Port;
 
     public SuiteHealthDto GetSuiteHealth()
     {
@@ -103,10 +103,10 @@ public sealed class MotherRuntime : IDisposable
             Status: "ok",
             SuiteId: "mother",
             Version: Version,
-            SdkVersion: "0.4.0",
+            SdkVersion: "0.4.1-hf.1",
             Pid: Environment.ProcessId,
             UptimeSeconds: Math.Max(0, (long)(DateTime.UtcNow - _startedUtc).TotalSeconds),
-            TestMode: Paths.Options.TestMode,
+            IsolatedMode: Paths.IsIsolatedOverride,
             SqliteUserVersion: Db.GetUserVersion(),
             RegisteredApps: apps.Count,
             WarmApps: apps.Count(a => a.ResidencyMode == "warm"),
@@ -140,7 +140,7 @@ public sealed class MotherRuntime : IDisposable
             {
                 tick++;
                 var manifests = Manifests.GetAll();
-                await Poller.PollOnceAsync(manifests, Paths.Options.TestMode, ct).ConfigureAwait(false);
+                await Poller.PollOnceAsync(manifests, ct).ConfigureAwait(false);
                 var apps = Supervisor.GetSnapshots();
                 var locks = TrafficCop.GetCurrentLocks(manifests);
                 int liveLocks = locks.Count(l => l.Status == "live");

@@ -44,7 +44,7 @@ public static class TerminalCommandDispatcher
                 var locks = runtime.TrafficCop.GetCurrentLocks(runtime.Manifests.GetAll());
                 var pwr = runtime.Power.GetStatus(runtime.Watchdog.IsRegistered());
                 return new TerminalDispatchResult(true,
-                    $"Mother v{health.Version} (sdk {health.SdkVersion}, testMode={health.TestMode}): {apps.Count(a => a.IsOnline)}/{apps.Count} online, Power={pwr.Policy}, Locks={locks.Count(l => l.Status == "live")} live/{locks.Count(l => l.Status == "stale")} stale.");
+                    $"Mother v{health.Version} (sdk {health.SdkVersion}, isolatedMode={health.IsolatedMode}): {apps.Count(a => a.IsOnline)}/{apps.Count} online, Power={pwr.Policy}, Locks={locks.Count(l => l.Status == "live")} live/{locks.Count(l => l.Status == "stale")} stale.");
             }
 
             case "health":
@@ -175,7 +175,7 @@ public static class TerminalCommandDispatcher
                 }
 
                 var updated = runtime.Power.SetPolicy(canonical);
-                return new TerminalDispatchResult(true, $"Policy={updated.Policy}, Simulated={updated.TestModeSimulated}");
+                return new TerminalDispatchResult(true, $"Policy={updated.Policy}, Simulated={updated.Simulated}");
             }
 
             default:

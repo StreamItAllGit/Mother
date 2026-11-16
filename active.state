@@ -4,10 +4,10 @@
   "name": "Mother",
   "projectGroup": "Personal",
   "relativePath": "Personal/Mother",
-  "containerTier": "Tier A (6-Folder)",
+  "containerTier": "Tier A (5-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "SIS",
-  "version": "0.2.0",
+  "version": "0.2.0-hf.1",
   "activeMilestone": "0.2.1",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-12",
@@ -25,6 +25,6 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "Mother v0.2.0 shipped, live-verified with Greenroom v0.2.0 (SSE disconnect guard + 35/35 Release tests + audit_installer FindingCount=0), Notion-synced, and packaged for private release.",
-  "updatedAtUtc": "2026-11-15T19:01:00.000Z"
+  "notes": "Mother v0.2.0-hf.1 hotfix: synced Foundation v0.4.1-hf.1, retired legacy isolated test harness, and standardized Tier A 5-folder layout.",
+  "updatedAtUtc": "2026-11-16T01:05:00.000Z"
 }

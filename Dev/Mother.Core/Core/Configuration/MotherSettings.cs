@@ -21,9 +21,6 @@ public sealed class MotherSettings
     [JsonPropertyName("port")]
     public int Port { get; set; } = 5100;
 
-    [JsonPropertyName("testModePort")]
-    public int TestModePort { get; set; } = 15100;
-
     [JsonPropertyName("bindHost")]
     public string BindHost { get; set; } = "127.0.0.1";
 
@@ -73,7 +70,6 @@ public sealed class MotherSettings
     {
         SchemaVersion = SchemaVersion <= 0 ? 1 : SchemaVersion;
         Port = Port is > 0 and <= 65535 ? Port : 5100;
-        TestModePort = TestModePort is > 0 and <= 65535 ? TestModePort : 15100;
         BindHost = string.IsNullOrWhiteSpace(BindHost) ? "127.0.0.1" : BindHost.Trim();
         ColdWakeIdleMinutes = Math.Clamp(ColdWakeIdleMinutes, 1, 1440);
         HealthPollIntervalMs = Math.Clamp(HealthPollIntervalMs, 1000, 60000);

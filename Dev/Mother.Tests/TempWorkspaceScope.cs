@@ -49,7 +49,6 @@ internal sealed class TempWorkspaceScope : IDisposable
     {
         var args = new System.Collections.Generic.List<string>
         {
-            "--test-mode",
             "--data-dir", DataDir,
             "--config", ConfigFile,
             "--log-dir", LogDir,

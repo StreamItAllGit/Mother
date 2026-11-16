@@ -31,7 +31,7 @@ public sealed class SecretVaultInspector
             if (string.IsNullOrWhiteSpace(app.SecretVaultPath)) continue;
             try
             {
-                string fullVault = _paths.AssertContainedIfSandbox(app.SecretVaultPath);
+                string fullVault = _paths.AssertContainedIfIsolated(app.SecretVaultPath);
                 if (File.Exists(fullVault))
                 {
                     string? dir = Path.GetDirectoryName(fullVault);
@@ -44,7 +44,7 @@ public sealed class SecretVaultInspector
             }
             catch
             {
-                /* skip out-of-sandbox paths in test-mode */
+                /* skip out-of-root paths in isolated mode */
             }
         }
 

@@ -1,11 +1,10 @@
 # ==============================================================================
-# 1. 6-Folder Outer Container Exclusions (Local / Packaged / Ephemeral)
+# 1. 5-Folder Outer Container Exclusions (Local / Packaged / Ephemeral)
 # ==============================================================================
 /Archive/
 /Builds/
 /Installers/
 /Releases/
-/Sandbox/
 
 # ==============================================================================
 # 2. Toolchains, Virtual Environments & Package Caches

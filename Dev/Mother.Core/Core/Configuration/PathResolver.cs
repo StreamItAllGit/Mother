@@ -1,5 +1,5 @@
 // @module: Mother.Core.Configuration.PathResolver
-// @purpose: Fail-closed SandboxEnvironment wrapper resolving CLI flags, dynamic ProgramsRoot (zero host literals), and contained directories.
+// @purpose: Fail-closed AppEnvironment wrapper resolving CLI flags, dynamic ProgramsRoot (zero host literals), and isolated directories.
 // @depends-on: System, System.Collections.Generic, System.IO, System.Security.Cryptography, System.Text, Foundation.Core
 // @exports: MotherLaunchOptions, PathResolver
 
@@ -18,9 +18,7 @@ public sealed record MotherLaunchOptions(
     string? WindowAppId,
     string? BrowserAppId,
     bool TrayOnly,
-    bool TestMode,
     bool DryRun,
-    bool Headless,
     bool Diagnose,
     bool ShowHelp,
     bool ShowVersion,
@@ -30,12 +28,14 @@ public sealed record MotherLaunchOptions(
 
 public sealed class PathResolver
 {
-    public SandboxEnvironment Sandbox { get; }
+    public AppEnvironment AppEnv { get; }
     public MotherLaunchOptions Options { get; }
-    public string BaseDirectory => Sandbox.BaseDirectory;
-    public string DataDirectory => Sandbox.DataDirectory;
-    public string ConfigFilePath => Sandbox.ConfigFilePath;
-    public string LogDirectory => Sandbox.LogDirectory;
+    public string BaseDirectory => AppEnv.BaseDirectory;
+    public string DataDirectory => AppEnv.DataDirectory;
+    public string ConfigFilePath => AppEnv.ConfigFilePath;
+    public string LogDirectory => AppEnv.LogDirectory;
+    public bool IsIsolatedOverride { get; }
+    public string ContainmentRoot { get; }
     public string ProgramsRoot { get; }
     public string ManifestsDirectory { get; }
     public string DatabasePath { get; }
@@ -45,29 +45,35 @@ public sealed class PathResolver
     public PathResolver(IReadOnlyList<string>? args = null, string? baseDirectoryOverride = null)
     {
         IReadOnlyList<string> cli = args ?? Array.Empty<string>();
-        Sandbox = new SandboxEnvironment("mother", cli, baseDirectoryOverride, "settings.json");
+        AppEnv = new AppEnvironment("mother", cli, baseDirectoryOverride, "settings.json");
 
         string? suiteTab = ReadFlagValue(cli, "--suite-tab");
         string? windowApp = ReadFlagValue(cli, "--window");
         string? browserApp = ReadFlagValue(cli, "--browser");
         string? programsDir = ReadFlagValue(cli, "--programs-dir") ?? Environment.GetEnvironmentVariable("MOTHER_PROGRAMS_ROOT");
-        bool trayOnly = Sandbox.TrayOnly || HasFlag(cli, "--minimized");
+        bool trayOnly = AppEnv.TrayOnly || HasFlag(cli, "--minimized");
         bool diagnose = HasFlag(cli, "--diagnose");
         bool showHelp = HasFlag(cli, "--help") || HasFlag(cli, "-h") || HasFlag(cli, "/?");
         bool showVersion = HasFlag(cli, "--version") || HasFlag(cli, "-v");
+
+        IsIsolatedOverride =
+            string.Equals(Environment.GetEnvironmentVariable("APP_ISOLATED_TEST"), "1", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(
+                Path.GetFullPath(DataDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                Path.GetFullPath(Path.Combine(BaseDirectory, "data")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+        ContainmentRoot = ResolveIsolatedContainmentRoot(DataDirectory) ?? DataDirectory;
 
         Options = new MotherLaunchOptions(
             SuiteTabAppId: suiteTab,
             WindowAppId: windowApp,
             BrowserAppId: browserApp,
             TrayOnly: trayOnly,
-            TestMode: Sandbox.TestMode,
-            DryRun: Sandbox.DryRun,
-            Headless: Sandbox.Headless,
+            DryRun: AppEnv.DryRun,
             Diagnose: diagnose,
             ShowHelp: showHelp,
             ShowVersion: showVersion,
-            PortOverride: Sandbox.PortOverride,
+            PortOverride: AppEnv.PortOverride,
             ProgramsDirOverride: programsDir);
 
         ProgramsRoot = ResolveProgramsRoot(programsDir);
@@ -82,17 +88,33 @@ public sealed class PathResolver
         Directory.CreateDirectory(BackupsDirectory);
     }
 
-    public string AssertContainedIfSandbox(string candidatePath)
+    public string AssertContainedIfIsolated(string candidatePath)
     {
-        if (Sandbox.IsContainedSandbox)
+        if (IsIsolatedOverride)
         {
-            string containmentRoot = SandboxEnvironment.ResolveSiblingSandboxRoot(DataDirectory) ?? DataDirectory;
-            return SandboxEnvironment.AssertPathContained(candidatePath, containmentRoot);
+            return AppEnvironment.AssertPathContained(candidatePath, ContainmentRoot);
         }
         return Path.GetFullPath(candidatePath);
     }
 
-    public string ComputeSandboxMutexHash()
+    public static string? ResolveIsolatedContainmentRoot(string dataDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(dataDirectory)) return null;
+        string full = Path.GetFullPath(dataDirectory.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!string.Equals(Path.GetFileName(full), "data", StringComparison.OrdinalIgnoreCase))
+            return null;
+        string? parent = Directory.GetParent(full)?.FullName;
+        if (string.IsNullOrWhiteSpace(parent)) return null;
+        string normParent = parent.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string normTemp = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (string.Equals(normParent, normTemp, StringComparison.OrdinalIgnoreCase)) return null;
+        return Path.GetPathRoot(normParent) is { } root &&
+               string.Equals(normParent, root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)
+            ? null
+            : normParent;
+    }
+
+    public string ComputeIsolatedMutexHash()
     {
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(DataDirectory.ToLowerInvariant()));
         return Convert.ToHexString(hash)[..12].ToLowerInvariant();
@@ -116,7 +138,7 @@ public sealed class PathResolver
                 }
             }
         }
-        return "0.2.0";
+        return "0.2.0-hf.1";
     }
 
     private string ResolveProgramsRoot(string? explicitOverride)
@@ -124,10 +146,10 @@ public sealed class PathResolver
         if (!string.IsNullOrWhiteSpace(explicitOverride))
         {
             string full = Path.GetFullPath(explicitOverride.Trim());
-            return AssertContainedIfSandbox(full);
+            return AssertContainedIfIsolated(full);
         }
 
-        if (Sandbox.IsContainedSandbox)
+        if (IsIsolatedOverride)
         {
             return Path.Combine(DataDirectory, "mock-apps");
         }

@@ -109,7 +109,7 @@ export function renderDoctorVaultsView(container, state, refreshAll) {
     card.innerHTML = `
       <h2 style="margin-top:0;font-size:16px">Fleet Post-Run Power Policy &amp; Watchdog</h2>
       <div class="row-gap" style="margin-bottom:10px">
-        <span class="${power.testModeSimulated ? 'badge-warn' : 'badge-ok'}">${power.testModeSimulated ? 'SIMULATED' : 'LIVE'}</span>
+        <span class="${power.simulated ? 'badge-warn' : 'badge-ok'}">${power.simulated ? 'SIMULATED' : 'LIVE'}</span>
         <span class="${power.fleetBusy ? 'badge-warn' : 'badge-info'}">BUSY: ${power.fleetBusy ? 'YES' : 'NO'}</span>
         <span class="badge-info">SLEEP INHIBITED: ${power.sleepInhibited ? 'YES' : 'NO'}</span>
         <span class="${power.watchdogRegistered ? 'badge-ok' : 'badge-warn'}">WATCHDOG: ${power.watchdogRegistered ? 'REGISTERED' : 'MISSING'}</span>

@@ -1,5 +1,5 @@
 // @module: Mother.Core.Features.Supervision.WorkerLaunchCommandBuilder
-// @purpose: Resolves supervised child executables, WorkerArgs/commands.startDaemon arguments, sandbox-contained WorkingDirectory, and Mother gateway env vars.
+// @purpose: Resolves supervised child executables, WorkerArgs/commands.startDaemon arguments, isolated-root WorkingDirectory, and Mother gateway env vars.
 // @depends-on: System, System.Collections.Generic, System.Diagnostics, System.IO, System.Linq, System.Text, Mother.Core.Configuration, Mother.Core.Contracts
 // @exports: WorkerLaunchCommandBuilder
 
@@ -40,15 +40,15 @@ public static class WorkerLaunchCommandBuilder
             : Path.GetDirectoryName(resolvedExecutable);
 
         string workingDir = !string.IsNullOrWhiteSpace(rawWorkDir)
-            ? paths.AssertContainedIfSandbox(rawWorkDir)
+            ? paths.AssertContainedIfIsolated(rawWorkDir)
             : paths.DataDirectory;
 
         if (!Directory.Exists(workingDir))
         {
             workingDir = Path.GetDirectoryName(resolvedExecutable) ?? paths.DataDirectory;
-            if (paths.Sandbox.IsContainedSandbox)
+            if (paths.IsIsolatedOverride)
             {
-                workingDir = paths.AssertContainedIfSandbox(workingDir);
+                workingDir = paths.AssertContainedIfIsolated(workingDir);
             }
         }
 
@@ -67,10 +67,6 @@ public static class WorkerLaunchCommandBuilder
         AppendFlagIfMissing(finalArgs, "--managed-by-mother");
         AppendFlagWithValueIfMissing(finalArgs, "--bind", "127.0.0.1");
         AppendFlagWithValueIfMissing(finalArgs, "--port", effectivePort.ToString());
-        if (paths.Options.TestMode)
-        {
-            AppendFlagIfMissing(finalArgs, "--test-mode");
-        }
 
         var psi = new ProcessStartInfo(fileName)
         {
@@ -167,7 +163,7 @@ public static class WorkerLaunchCommandBuilder
         string combined = Path.IsPathRooted(trimmed) || string.IsNullOrWhiteSpace(installDir)
             ? trimmed
             : Path.Combine(installDir, trimmed);
-        return paths.Sandbox.IsContainedSandbox ? paths.AssertContainedIfSandbox(combined) : Path.GetFullPath(combined);
+        return paths.IsIsolatedOverride ? paths.AssertContainedIfIsolated(combined) : Path.GetFullPath(combined);
     }
 
     private static bool IsBareCommandToken(string token) =>

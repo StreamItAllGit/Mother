@@ -49,22 +49,8 @@ public static class Program
         return RunHost(normalizedArgs);
     }
 
-    public static string[] NormalizeInstallerArgs(IReadOnlyList<string>? args)
-    {
-        if (args is null || args.Count == 0) return Array.Empty<string>();
-        bool hasTestMode = args.Any(a => string.Equals(a, "--test-mode", StringComparison.OrdinalIgnoreCase));
-        bool hasDataDir = args.Any(a => string.Equals(a, "--data-dir", StringComparison.OrdinalIgnoreCase)
-            || a.StartsWith("--data-dir=", StringComparison.OrdinalIgnoreCase));
-        string? installDir = TryReadFlagValue(args, "--install-dir");
-
-        var result = new List<string>(args);
-        if (hasTestMode && !hasDataDir && !string.IsNullOrWhiteSpace(installDir))
-        {
-            result.Add("--data-dir");
-            result.Add(installDir);
-        }
-        return result.ToArray();
-    }
+    public static string[] NormalizeInstallerArgs(IReadOnlyList<string>? args) =>
+        args is null || args.Count == 0 ? Array.Empty<string>() : args.ToArray();
 
     public static void WaitForTargetUnlocked(IReadOnlyList<string> args, int maxAttempts = 12, int delayMs = 250)
     {
@@ -112,7 +98,7 @@ public static class Program
     {
         string version = typeof(Program).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? "0.2.0";
+            ?? "0.2.0-hf.1";
 
         int plusIdx = version.IndexOf('+');
         if (plusIdx > 0) version = version[..plusIdx];

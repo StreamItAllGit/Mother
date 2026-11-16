@@ -40,9 +40,8 @@ public sealed class ManifestAndTrafficCopTests
           "schemaVersion": 2,
           "appId": "shadowlibrary",
           "name": "ShadowLibrary",
-          "version": "0.1.25",
+          "version": "0.2.2-hf.2",
           "internalPort": 5179,
-          "sandboxPort": 15179,
           "residencyMode": "cold",
           "sharedMounts": ["D:\\Media"],
           "mutuallyExclusiveWith": ["housekeeping"]
@@ -56,7 +55,7 @@ public sealed class ManifestAndTrafficCopTests
 
         Assert.Equal("v1", hk.DetectedSchemaFormat);
         Assert.Equal("v2", sl.DetectedSchemaFormat);
-        Assert.Equal(15179, runtime.Manifests.GetEffectivePort(sl));
+        Assert.Equal(5179, runtime.Manifests.GetEffectivePort(sl));
         Assert.Equal(6, CanonicalSisterDefaults.KnownApps.Count);
     }
 
@@ -189,7 +188,7 @@ public sealed class ManifestAndTrafficCopTests
         {
           "appId": "shadowlibrary",
           "pid": 999991,
-          "hostName": "SANDBOX",
+          "hostName": "ISOLATED-HOST",
           "operation": "archive-verify",
           "acquiredAtUtc": "2020-01-01T00:00:00.000Z",
           "createdAtUtc": "2019-12-31T23:59:59.000Z",
@@ -201,7 +200,7 @@ public sealed class ManifestAndTrafficCopTests
         {
           "appId": "housekeeping",
           "pid": 999992,
-          "hostName": "SANDBOX",
+          "hostName": "ISOLATED-HOST",
           "operation": "legacy-job",
           "createdAtUtc": "2021-05-06T07:08:09.123Z"
         }

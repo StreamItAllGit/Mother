@@ -2,7 +2,6 @@
   "schemaVersion": 1,
   "useGlobalFormatRules": true,
   "port": 5100,
-  "testModePort": 15100,
   "bindHost": "127.0.0.1",
   "allowTailscaleBind": false,
   "coldWakeIdleMinutes": 15,

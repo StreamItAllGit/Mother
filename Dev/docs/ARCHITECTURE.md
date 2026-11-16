@@ -1,6 +1,6 @@
 # Mother — Deep Architecture, Fleet Supervision Graph & Symbol Map (`ARCHITECTURE.md`)
 
-> **Active Baseline Version:** `v0.2.0` (`MPL-2.0`) | **Full SemVer (`MAJOR.MINOR.PATCH`)** | **SDK Pin:** `Foundation v0.4.0`
+> **Active Baseline Version:** `v0.2.0-hf.1` (`MPL-2.0`) | **Full SemVer (`MAJOR.MINOR.PATCH[-hf.N]`)** | **SDK Pin:** `Foundation v0.4.1-hf.1`
 
 This technical manual documents the system context, runtime process topology, assembly dependency graph, end-to-end orchestration pipelines, file and symbol lookup registry, persistence stores, failure-mode engineering, security model, testing strategy, architectural decision records (ADRs), and zero-touch extension playbooks for **`Mother`** ([`<WORKSPACE_ROOT>/Mother\`](file:///<WORKSPACE_ROOT>/Mother/)), the Single Shared Suite Daemon (`:5100`), unified system tray sentinel, reverse-proxy API gateway, autonomous Cold-Wake scheduler, schedule traffic cop, post-run power coordinator, and cross-app coexistence broker for the 6 sister applications (**Housekeeping** `:5178`, **ShadowLibrary** `:5179`, **Redroom** `:5180`, **Greenroom** `:8420`, **StreamEngine** `:8430`, and **legacy-sister-app** `:8460`).
 
@@ -10,7 +10,7 @@ This technical manual documents the system context, runtime process topology, as
 
 > [!IMPORTANT]
 > **Single Shared Suite Daemon & Single Public Gateway**
-> `Mother` (`%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\`) eliminates competing system tray icons, duplicate Task Scheduler watchdogs, and uncoordinated 3:00 AM disk thrashing across the workstation. Only `Mother` binds a public/LAN/Tailscale gateway port (`http://127.0.0.1:5100/`, Tailscale HTTPS `:8500`, Sandbox `:15100`). All 6 sister applications run as supervised child workers bound strictly to `127.0.0.1` loopback (`:5178..5180`, `:8420..8460`) with `--managed-by-mother --bind 127.0.0.1 --port <effectivePort>`, managed according to their per-app residency mode (`Warm`, `Cold`, or `Disabled`).
+> `Mother` (`%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\`) eliminates competing system tray icons, duplicate Task Scheduler watchdogs, and uncoordinated 3:00 AM disk thrashing across the workstation. Only `Mother` binds a public/LAN/Tailscale gateway port (`http://127.0.0.1:5100/`, Tailscale HTTPS `:8500`). All 6 sister applications run as supervised child workers bound strictly to `127.0.0.1` loopback (`:5178..5180`, `:8420..8460`) with `--managed-by-mother --bind 127.0.0.1 --port <effectivePort>`, managed according to their per-app residency mode (`Warm`, `Cold`, or `Disabled`).
 
 ```mermaid
 flowchart TB
@@ -21,7 +21,7 @@ flowchart TB
         MobilePWA["Mode D: Scoped Mobile PWA via Tailscale HTTPS (:8500/app/<app-id>/)"]
     end
 
-    subgraph MotherHost ["Mother Shared Suite Daemon (StreamItAll\\Mother\\Mother, Port :5100 / Sandbox :15100)"]
+    subgraph MotherHost ["Mother Shared Suite Daemon (StreamItAll\\Mother\\Mother, Port :5100)"]
         Gateway["Kestrel Gateway & 307 Subpath Proxy (/api/v1/suite/*, /api/v1/apps/*, /app/{appId}/)"]
         Tray["Single System Tray Sentinel (Global\\Mother_Supervisor_Active)"]
         Discovery["Umbrella & Dual-Schema Manifest Loader (ManifestRegistryService: suite.manifest.json v2 + v1)"]
@@ -33,12 +33,12 @@ flowchart TB
     end
 
     subgraph ChildFleet ["Supervised Loopback Sister Daemons (127.0.0.1 Only, Warm / Cold / Disabled)"]
-        HK["Housekeeping (:5178 / :15178) — Amber #f59e0b"]
-        SL["ShadowLibrary (:5179 / :15179) — Indigo #6366f1"]
-        RR["Redroom (:5180 / :15180) — Crimson #ef4444"]
-        GR["Greenroom (:8420 / :15420) — Emerald #10b981"]
-        SE["StreamEngine (:8430 / :15430) — Violet #8b5cf6"]
-        US["legacy-sister-app (:8460 / :15460) — Cyan #06b6d4"]
+        HK["Housekeeping (:5178) — Amber #f59e0b"]
+        SL["ShadowLibrary (:5179) — Indigo #6366f1"]
+        RR["Redroom (:5180) — Crimson #ef4444"]
+        GR["Greenroom (:8420) — Emerald #10b981"]
+        SE["StreamEngine (:8430) — Violet #8b5cf6"]
+        US["legacy-sister-app (:8460) — Cyan #06b6d4"]
     end
 
     Clients --> Gateway
@@ -58,8 +58,8 @@ flowchart TB
 ```
 
 ### Runtime Process, Threading & Residency Model
-1. **Single-Instance & Supervisor Mutexes:** On startup, `Mother` acquires `Global\Mother_SingleInstance_Mutex` and `Global\Mother_Supervisor_Active` (via `SupervisorIpc`, isolated with `Local\Mother.TestMode.<hash>` prefix under `--test-mode`). Child sister apps inspect `Global\Mother_Supervisor_Active` (and `--managed-by-mother`) to suppress their standalone system tray icons.
-2. **Sibling-Sandbox Containment (`SandboxEnvironment.ResolveSiblingSandboxRoot`):** Under `--test-mode`, `PathResolver.AssertContainedIfSandbox` permits multi-repo sister sandbox execution within the shared `Sandbox\` ancestor folder (`<WORKSPACE_ROOT>/Mother\Sandbox\sister-apps\<app>\`) while failing closed (`Exit 3`) on any escape outside `Sandbox\`.
+1. **Single-Instance & Supervisor Mutexes:** On startup, `Mother` acquires `Global\Mother_SingleInstance_Mutex` and `Global\Mother_Supervisor_Active` (via `SupervisorIpc`, isolated with `Local\Mother.Isolated.<hash>` prefix when `IsIsolatedOverride` is active via `--data-dir` / `APP_ISOLATED_TEST=1`). Child sister apps inspect `Global\Mother_Supervisor_Active` (and `--managed-by-mother`) to suppress their standalone system tray icons.
+2. **Sibling Containment (`AppEnvironment` / `PathResolver`):** Under isolated execution (`--data-dir` / `APP_ISOLATED_TEST=1`), `PathResolver.AssertContainedIfIsolated` / `ResolveIsolatedContainmentRoot` resolves and contains sibling test/worker roots inside the configured data/ancestor root without mutating host Registry, Task Scheduler, or `<PROGRAMS_ROOT>/` production trees.
 3. **Per-App Residency Loop (`Warm`, `Cold`, `Disabled`):**
    - **`Warm` (`always-on`):** Spawned at `Mother` boot via `WorkerLaunchCommandBuilder` (`--managed-by-mother --bind 127.0.0.1 --port <effectivePort>`); health-polled every `250ms` during wake and `5000ms` steady-state (`HealthPollerService`).
    - **`Cold` (`on-demand`, `0 MB` idle RAM):** Not spawned at boot. Automatically woken on UI navigation (`/app/<app-id>/`), API call (`/api/v1/apps/<app-id>/*`), or due `schedules[]` entry (`FleetScheduleEvaluator` + `ColdWakeCoordinator`), and gracefully hibernated by `ColdWakeCoordinator.EvaluateIdleHibernationAsync` after `idleTimeoutMinutes` (`15m` default) once `activeJobs == 0` and `queuedJobs == 0`.
@@ -70,14 +70,14 @@ flowchart TB
 
 ## 2. Project & Module Dependency Graph
 
-`Mother` pins **`Foundation v0.4.0`** (`Foundation.Core.dll`, `Foundation.Installer.dll`, `Foundation.Launcher.dll`, `Foundation.UI.dll`, plus `wwwroot\vendor\foundation\`) from [`<WORKSPACE_ROOT>/SharedLibs\Foundation\v0.4.0\`](file:///<WORKSPACE_ROOT>/SharedLibs/Foundation/v0.4.0/) into gitignored `Dev\lib\` (auto-synced pre-build by `Dev\deploy.ps1` via `sync_foundation_sdk.py --sync-consumer`):
+`Mother` pins **`Foundation v0.4.1-hf.1`** (`Foundation.Core.dll`, `Foundation.Installer.dll`, `Foundation.Launcher.dll`, `Foundation.UI.dll`, plus `wwwroot\vendor\foundation\`) from [`<WORKSPACE_ROOT>/SharedLibs\Foundation\v0.4.1-hf.1\`](file:///<WORKSPACE_ROOT>/SharedLibs/Foundation/v0.4.1-hf.1/) into gitignored `Dev\lib\` (auto-synced pre-build by `Dev\deploy.ps1` via `sync_foundation_sdk.py --sync-consumer`):
 
 ```mermaid
 flowchart TD
-    Fnd["Auto-Synced Shared SDK (Dev/lib/Foundation v0.4.0 via sync_foundation_sdk.py)\nFoundation.Core.dll | Foundation.Installer.dll | Foundation.Launcher.dll | Foundation.UI.dll"]
+    Fnd["Auto-Synced Shared SDK (Dev/lib/Foundation v0.4.1-hf.1 via sync_foundation_sdk.py)\nFoundation.Core.dll | Foundation.Installer.dll | Foundation.Launcher.dll | Foundation.UI.dll"]
     MCore["Mother.Core (.NET 8 Windows Class Library)\nPathResolver, MotherSettings, SettingsStore, MotherDb, FleetContracts,\nManifestModels, ManifestRegistryService, WorkerLaunchCommandBuilder,\nFleetScheduleEvaluator, ProcessSupervisor, ColdWakeCoordinator, HealthPollerService,\nWatchdogSchedulerService, ResourceTrafficCopService, HkLockScanner,\nFleetCoexistenceArbitrator, SecretVaultInspector, FleetPowerCoordinator, FleetDoctorService"]
     MServer["Mother.Server (.NET 8-windows Kestrel Gateway & Modular WebUI)\nMotherWebHost, SuiteApiEndpoints, TrafficCopAndCoexistenceEndpoints,\nColdWakeProxyMiddleware, TerminalCommandDispatcher, SseAndTerminalEndpoints, TailscaleAndQrEndpoints"]
-    MApp["Mother.App (.NET 8-windows WinForms + WebView2 + Tray Shell)\nMainForm, TrayHostContext, Program (--test-mode --headless)"]
+    MApp["Mother.App (.NET 8-windows WinForms + WebView2 + Tray Shell)\nMainForm, TrayHostContext, Program (--tray-only, UiPresentationMode.TrayOrBackground)"]
     MLauncher["Mother.Launcher (Clean-Root Mother.exe Shim)\nForwards CLI flags via Foundation.Launcher.dll to app/Mother.App.exe"]
     MInst["Mother.Installer (.NET 8-windows 4-Pillar Setup Wizard)\nMotherInstallerRunner + MotherInstallerIntegration on InstallerEngineCore & InstallerWizardForm"]
     MTests["Mother.Tests (xUnit Test Suite — 35+ Tests)\nPathResolver/Settings, SQLite + Wire Lockstep, Manifest/TrafficCop,\nPower/Watchdog/Doctor, Server/Installer + V020FeaturesTests"]
@@ -107,9 +107,9 @@ flowchart TD
 ## 3. End-to-End Data Flow per Pipeline
 
 ### Pipeline A: Umbrella Discovery, Command Building & Residency Supervision (`ManifestRegistryService` -> `WorkerLaunchCommandBuilder` -> `ProcessSupervisor`)
-1. **Priority Scan Order (`PathResolver.ResolveProgramsRoot` & `ManifestRegistryService`):** If `Sandbox.IsContainedSandbox`, short-circuits strictly to `Sandbox\data\manifests\` + `Sandbox\data\mock-apps\`. Outside sandbox, inspects `MOTHER_HOME`, `HKCU\Software\StreamItAll\Mother\SuiteInstallDir|InstallDir`, umbrella parent `StreamItAll\Mother\`, `%LOCALAPPDATA%\Programs\StreamItAll\Mother\`, and read-only legacy `<PROGRAMS_ROOT>/` fallback.
+1. **Priority Scan Order (`PathResolver.ResolveProgramsRoot` & `ManifestRegistryService`):** In isolated mode (`--data-dir` / `APP_ISOLATED_TEST=1`), checks configured `--programs-dir`, `<DataDir>\manifests\`, and `<DataDir>\mock-apps\` without reading live host installs. In standard runs, inspects `MOTHER_HOME`, `HKCU\Software\StreamItAll\Mother\SuiteInstallDir|InstallDir`, umbrella parent `StreamItAll\Mother\`, `%LOCALAPPDATA%\Programs\StreamItAll\Mother\`, and read-only legacy `<PROGRAMS_ROOT>/` fallback.
 2. **Dual-Schema Normalization & Aliases:** Normalizes both `v2` `camelCase` (`schemaVersion: 2`, `appId`, `schedules[]`, `commands.startDaemon`, `workerArgs`) and legacy `v1` `snake_case`, mapping residency aliases (`on-demand` -> `cold`, `always-on` -> `warm`) and nested/top-level `idleTimeoutMinutes`.
-3. **Command Building & Launch (`WorkerLaunchCommandBuilder`):** Resolves `commands.startDaemon` primary or `executable` + `workerArgs`, validates sibling-sandbox-contained `WorkingDirectory`, appends `--managed-by-mother --bind 127.0.0.1 --port <effectivePort> [--test-mode]`, and injects `MANAGED_BY_SUITE=1`, `MOTHER_SUPERVISED=1`, and `MOTHER_GATEWAY_URL`.
+3. **Command Building & Launch (`WorkerLaunchCommandBuilder`):** Resolves `commands.startDaemon` primary or `executable` + `workerArgs`, validates contained `WorkingDirectory`, appends `--managed-by-mother --bind 127.0.0.1 --port <effectivePort>`, and injects `MANAGED_BY_SUITE=1`, `MOTHER_SUPERVISED=1`, and `MOTHER_GATEWAY_URL`.
 
 ### Pipeline B: Autonomous Cold-Wake `schedules[]` Loop & Idle Hibernation (`FleetScheduleEvaluator`)
 1. Evaluates registered `schedules[]` (`cadence`, `timeUtc`, `runIfMissed`) every tick from `MotherRuntime.BackgroundLoopAsync` alongside `ColdWakeCoordinator.EvaluateIdleHibernationAsync`.
@@ -120,7 +120,7 @@ flowchart TD
 2. `FleetCoexistenceArbitrator` aggregates `/api/v1/coexistence/status` and offline `<SharedRoot>\.coexistence.json` manifests; **`Apply Safe-Stagger`** (`POST /api/v1/suite/coexistence/apply-recommendations`) aligns presets cleanly.
 
 ### Pipeline D: Fleet Post-Run Power Coordinator & Subpath Proxy (`FleetPowerCoordinator`, `ColdWakeProxyMiddleware`, `TerminalCommandDispatcher`)
-1. `FleetPowerCoordinator` blocks OS sleep/shutdown via `PowerSleepInhibitor` (`SetThreadExecutionState`) until aggregate `activeJobs + queuedJobs == 0` and live `.hklock` count is `0`, then starts a 60-second cancellable countdown (simulated safely in `--test-mode` / `--dry-run`).
+1. `FleetPowerCoordinator` blocks OS sleep/shutdown via `PowerSleepInhibitor` (`SetThreadExecutionState`) until aggregate `activeJobs + queuedJobs == 0` and live `.hklock` count is `0`, then starts a 60-second cancellable countdown (simulated safely in isolated / `--dry-run` runs).
 2. `ColdWakeProxyMiddleware` returns `307 Temporary Redirect` on `/app/{appId}` -> `/app/{appId}/` preserving query strings and injects `X-Forwarded-Prefix: /app/{appId}` upstream; `TerminalCommandDispatcher` executes `help`, `status`, `health`, `apps`, `traffic`, `locks`, `coexistence`, `doctor`, `logs [count]`, `purge-stale`, `reload`, `wake <appId>`, `stop <appId>`, and `power [StayAwake|Sleep|Shutdown]`.
 
 ---
@@ -131,32 +131,32 @@ flowchart TD
 
 | File Path (Relative to `<WORKSPACE_ROOT>/Mother\`) | Role & Responsibility |
 | :--- | :--- |
-| [`active.state`](file:///<WORKSPACE_ROOT>/Mother/active.state) | Canonical Tier A lifecycle state marker (`v0.2.0`, `productionSubpath: StreamItAll\Mother\Mother`). |
+| [`active.state`](file:///<WORKSPACE_ROOT>/Mother/active.state) | Canonical Tier A lifecycle state marker (`v0.2.0-hf.1`, `productionSubpath: StreamItAll\Mother\Mother`). |
 | [`README.md`](file:///<WORKSPACE_ROOT>/Mother/README.md) / [`FEATURES.md`](file:///<WORKSPACE_ROOT>/Mother/FEATURES.md) / [`ROADMAP.md`](file:///<WORKSPACE_ROOT>/Mother/ROADMAP.md) / [`CHANGELOG.md`](file:///<WORKSPACE_ROOT>/Mother/CHANGELOG.md) | Root Documentation Quartet + [`LICENSE`](file:///<WORKSPACE_ROOT>/Mother/LICENSE) (`MPL-2.0`) + [`AGENTS.md`](file:///<WORKSPACE_ROOT>/Mother/AGENTS.md). |
 | [`Dev/docs/plans/v0.2.0.2026-11-15.md`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/plans/v0.2.0.2026-11-15.md) | Locked `v0.2.0` Blueprint reconciling predecessor audit findings and the working tasklist. |
-| [`Dev/docs/reports/archive/`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/reports/archive/) | Archived diagnostic audits (`0448`, `0532`, `1715`, `2348`, `0938`, `2115`). |
+| [`Dev/docs/reports/archive/`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/reports/archive/) | Archived diagnostic audits (`0448`, `0532`, `1715`, `0938`, `2115`). |
 
 ### 4.2 Implemented C# / PowerShell / Web Slices (`<= 400 LOC` Hard Gate)
 
 | Slice Path (Relative to `Dev\`) | Code LOC Status | Primary Exported Symbols | Role & Responsibility |
 | :--- | :---: | :--- | :--- |
 | `migrations/0001_initial_schema.sql` | `64` (`PASS`) | `fleet_health_events`, `schedule_deferrals`, `notification_history` | Suite SQLite schema (`PRAGMA user_version = 1`). |
-| `Mother.Core/Core/MotherRuntime.cs` | `185` (`PASS`) | `MotherRuntime` (`SdkVersion = "0.4.0"`), `SuiteRuntimeOptions` | Central orchestrator wiring DB, supervisor, scheduler, traffic cop, power, and doctor. |
-| `Mother.Core/Core/Configuration/{PathResolver,MotherSettings,SettingsStore}.cs` | `230` / `<=120` (`PASS`) | `PathResolver`, `MotherSettings` (`TargetDrives`), `SettingsStore` | Umbrella discovery (`StreamItAll\Mother`), sibling sandbox containment, 20-snapshot ring buffer. |
+| `Mother.Core/Core/MotherRuntime.cs` | `185` (`PASS`) | `MotherRuntime` (`SdkVersion = "0.4.1-hf.1"`), `SuiteRuntimeOptions` | Central orchestrator wiring DB, supervisor, scheduler, traffic cop, power, and doctor. |
+| `Mother.Core/Core/Configuration/{PathResolver,MotherSettings,SettingsStore}.cs` | `230` / `<=120` (`PASS`) | `PathResolver`, `MotherSettings` (`TargetDrives`), `SettingsStore` | Umbrella discovery (`StreamItAll\Mother`), contained `--data-dir` isolation, 20-snapshot ring buffer. |
 | `Mother.Core/Core/Persistence/{MotherDb,MotherDbModels}.cs` | `329` / `152` (`PASS`) | `MotherDb`, `FleetHealthEventRow`, `ScheduleDeferralRow`, `NotificationHistoryRow` | `Foundation.Core.SqliteWalPool` (`WAL`, `busyTimeoutMs: 15000`, `PRAGMA user_version = 1`). |
-| `Mother.Core/Core/{Diagnostics/MotherDiagnostics,Ipc/SupervisorIpc,Contracts/FleetContracts}.cs` | `128` / `133` / `205` (`PASS`) | `MotherDiagnostics`, `SupervisorIpc`, `SuiteHealthDto`, `SisterScheduleEntry`, `SisterCommandsEntry` | Zero-PII crash bundles, rolling JSONL logs, sandbox mutexes, DTO wire contracts. |
+| `Mother.Core/Core/{Diagnostics/MotherDiagnostics,Ipc/SupervisorIpc,Contracts/FleetContracts}.cs` | `128` / `133` / `205` (`PASS`) | `MotherDiagnostics`, `SupervisorIpc`, `SuiteHealthDto`, `SisterScheduleEntry`, `SisterCommandsEntry` | Zero-PII crash bundles, rolling JSONL logs, isolated mutexes, DTO wire contracts. |
 | `Mother.Core/Features/Discovery/{ManifestModels,ManifestRegistryService}.cs` | `226` / `215` (`PASS`) | `ManifestRegistryService`, `ManifestParser`, `SisterAppEntry` | Dual-schema `v2`/`v1` loader, `schedules[]`, `commands`, residency aliases (`on-demand`/`always-on`). |
-| `Mother.Core/Features/Supervision/WorkerLaunchCommandBuilder.cs` | `227` (`PASS`) | `WorkerLaunchCommandBuilder` | Resolves `workerArgs`/`commands.startDaemon`, sibling-sandbox `WorkingDirectory`, gateway env vars. |
+| `Mother.Core/Features/Supervision/WorkerLaunchCommandBuilder.cs` | `227` (`PASS`) | `WorkerLaunchCommandBuilder` | Resolves `workerArgs`/`commands.startDaemon`, contained `WorkingDirectory`, gateway env vars. |
 | `Mother.Core/Features/Supervision/FleetScheduleEvaluator.cs` | `317` (`PASS`) | `FleetScheduleEvaluator`, `ScheduleRuntimeState` | Evaluates `schedules[]`, enforces coexistence deferrals, persists `scheduler-state.json`. |
 | `Mother.Core/Features/Supervision/{ProcessSupervisor,ColdWakeCoordinator,HealthPollerService,WatchdogSchedulerService}.cs` | `319` / `<=115` (`PASS`) | `ProcessSupervisor`, `ColdWakeCoordinator` | `Warm`/`Cold`/`Disabled` lifecycle, idle hibernation, `250ms`/`5000ms` health poll, `3x/60s` breaker. |
 | `Mother.Core/Features/TrafficCop/{HkLockScanner,ResourceTrafficCopService}.cs` | `158` / `137` (`PASS`) | `HkLockScanner`, `ResourceTrafficCopService` | PID-safe `.hklock` inspection, stale purge, schedule deferrals. |
 | `Mother.Core/Features/Coexistence/{FleetCoexistenceArbitrator,SecretVaultInspector}.cs` | `219` / `84` (`PASS`) | `FleetCoexistenceArbitrator`, `SecretVaultInspector` | Conflict arbitration, `.coexistence.json` recommendations, key-metadata-only DPAPI inspection. |
 | `Mother.Core/Features/{Power/FleetPowerCoordinator,Power/PowerSleepInhibitor,Doctor/FleetDoctorService,Notifications/NotificationDispatcher}.cs` | `<= 225` (`PASS`) | `FleetPowerCoordinator`, `FleetDoctorService`, `NotificationDispatcher` | `StayAwake`/`Sleep`/`Shutdown` 60s countdown, Doctor + SQLite backup/bundle, alerts. |
-| `Mother.Server/{Program,MotherWebHost}.cs` & `Endpoints/*.cs` (6 files) | `153`–`248` (`PASS`) | `MotherWebHost`, `SuiteApiEndpoints`, `TrafficCopAndCoexistenceEndpoints`, `ColdWakeProxyMiddleware`, `TerminalCommandDispatcher`, `SseAndTerminalEndpoints`, `TailscaleAndQrEndpoints` | Kestrel gateway (`:5100`/`:15100`), `307 /app/{appId}` redirect, `X-Forwarded-Prefix`, `/api/v1/scheduler/defer`, expanded terminal commands, SSE, QR, PWA. |
+| `Mother.Server/{Program,MotherWebHost}.cs` & `Endpoints/*.cs` (6 files) | `153`–`248` (`PASS`) | `MotherWebHost`, `SuiteApiEndpoints`, `TrafficCopAndCoexistenceEndpoints`, `ColdWakeProxyMiddleware`, `TerminalCommandDispatcher`, `SseAndTerminalEndpoints`, `TailscaleAndQrEndpoints` | Kestrel gateway (`:5100`), `307 /app/{appId}` redirect, `X-Forwarded-Prefix`, `/api/v1/scheduler/defer`, expanded terminal commands, SSE, QR, PWA. |
 | `Mother.Server/wwwroot/{index.html,css/*,js/*}` (10 custom files) | `44`–`342` (`PASS`) | `mother.css`, `mother-components.css`, `app.js`, `contracts.js`, `sortable-table.js`, `views/*` | Titanium Sky `#38bdf8` UI (`Alt+1..7`, `Ctrl+B`, `<= 820px` mobile nav, `Ctrl+\``, `Ctrl+K`/`?`). |
-| `Mother.App/{Program,MainForm,TrayHostContext}.cs` & `Mother.Launcher/Program.cs` | `38`–`175` (`PASS`) | `MainForm`, `TrayHostContext`, `Mother.Launcher` | WinForms + WebView2 host, `--test-mode --headless`, `TaskbarCreated`, clean-root shim. |
-| `Mother.Installer/{Program,MotherInstallerRunner,MotherInstallerIntegration}.cs` | `117` / `<=340` / `<=125` (`PASS`) | `MotherInstallerRunner`, `MotherInstallerIntegration` | `Foundation.Installer.InstallerEngineCore` + `InstallerWizardForm`, `--profile`, `--suite-dir`, `--migrate-legacy`, `--visible-test`, decoupled HKCU/shortcuts, `--uninstall --dry-run` guard. |
-| `deploy.ps1` & `package_installer.ps1` | `155` / `<=215` (`PASS`) | `deploy.ps1`, `package_installer.ps1` | Pre-build `sync_foundation_sdk.py --sync-consumer`, flat `Assets`/`migrations`, Clean Release Root (`LICENSE`, `app\LICENSE`, `settings.example.json`), 6-file `Releases\v0.2.0\` + `Latest\`. |
+| `Mother.App/{Program,MainForm,TrayHostContext}.cs` & `Mother.Launcher/Program.cs` | `38`–`175` (`PASS`) | `MainForm`, `TrayHostContext`, `Mother.Launcher` | WinForms + WebView2 host, `--tray-only` (`UiPresentationMode.TrayOrBackground`), `TaskbarCreated`, clean-root shim. |
+| `Mother.Installer/{Program,MotherInstallerRunner,MotherInstallerIntegration}.cs` | `117` / `<=340` / `<=125` (`PASS`) | `MotherInstallerRunner`, `MotherInstallerIntegration` | `Foundation.Installer.InstallerEngineCore` + `InstallerWizardForm`, `--profile`, `--suite-dir`, `--migrate-legacy`, decoupled HKCU/shortcuts, `--uninstall --dry-run` guard. |
+| `deploy.ps1` & `package_installer.ps1` | `155` / `<=215` (`PASS`) | `deploy.ps1`, `package_installer.ps1` | Pre-build `sync_foundation_sdk.py --sync-consumer`, flat `Assets`/`migrations`, Clean Release Root (`LICENSE`, `app\LICENSE`, `settings.example.json`), 6-file `Releases\v0.2.0-hf.1\` + `Latest\`. |
 | `Mother.Tests/*.cs` (7 files + `TempWorkspaceScope.cs`) | `<= 365` (`PASS`) | `V020FeaturesTests` + 6 suites | `35/35` xUnit tests passing under Release `/warnaserror`. |
 
 ---
@@ -184,12 +184,12 @@ flowchart TD
 | **Two Apps Schedule Heavy Disk Jobs Simultaneously** | `ResourceTrafficCopService`, `HkLockScanner`, & `FleetScheduleEvaluator` check `.hklock` & `targetDrives`. | Defers conflicting run (`POST /api/v1/scheduler/defer` + `schedule_deferrals` + `scheduler-state.json`). |
 | **Premature OS Sleep While a Sister App Works** | `FleetPowerCoordinator` checks aggregate `activeJobs + queuedJobs` and live `.hklock` holds. | Inhibits OS Sleep/Shutdown until fleet idle (`0`), then runs cancellable 60s countdown. |
 | **Subpath Web UI Relative Asset Resolution** | Client requests `/app/<appId>` without trailing slash. | `ColdWakeProxyMiddleware` responds `307` -> `/app/{appId}/` and sets `X-Forwarded-Prefix: /app/{appId}`. |
-| **Fresh Clone Missing Tracked `Dev\lib\` Binaries** | `Dev\deploy.ps1` checks for `Dev\lib\Foundation.Core.dll`. | Automatically invokes `sync_foundation_sdk.py --sync-consumer` against `Foundation v0.4.0`. |
+| **Fresh Clone Missing Tracked `Dev\lib\` Binaries** | `Dev\deploy.ps1` checks for `Dev\lib\Foundation.Core.dll`. | Automatically invokes `sync_foundation_sdk.py --sync-consumer` against `Foundation v0.4.1-hf.1`. |
 
-- **Security Model:** Loopback-only child workers (`127.0.0.1`), optional Tailscale CGNAT (`100.64.0.0/10`) filter, DPAPI encrypted secrets, fail-closed `--test-mode` (`SandboxEnvironment.ResolveSiblingSandboxRoot`), Clean-Room Git scrub (`Dev\lib\*.{dll,pdb,xml,deps.json}` gitignored), and signed zero-PII 4-pillar installer (`audit_installer.ps1` `FindingCount: 0`).
+- **Security Model:** Loopback-only child workers (`127.0.0.1`), optional Tailscale CGNAT (`100.64.0.0/10`) filter, DPAPI encrypted secrets, isolated test guard (`APP_ISOLATED_TEST=1` / `AppEnvironment`), Clean-Room Git scrub (`Dev\lib\*.{dll,pdb,xml,deps.json}` gitignored), and signed zero-PII 4-pillar installer (`audit_installer.ps1` `FindingCount: 0`).
 - **Verification Commands:**
-  - `dotnet test "<WORKSPACE_ROOT>/Mother\Dev\Mother.slnx" -c Release -p:TreatWarningsAsErrors=true --logger "console;verbosity=normal"` (`35/35` passing, `0` warnings)
-  - `powershell -ExecutionPolicy Bypass -File "%USERPROFILE%\.gemini\config\skills\dev\scripts\audit_installer.ps1" -InstallerPath "<WORKSPACE_ROOT>/Mother\Installers" -StagingDir "<WORKSPACE_ROOT>/Mother\Builds\v0.2.0" -ExpectedVersion "0.2.0"` (`FindingCount: 0`)
+  - `APP_ISOLATED_TEST=1 dotnet test "<WORKSPACE_ROOT>/Mother\Dev\Mother.slnx" -c Release -p:TreatWarningsAsErrors=true --logger "console;verbosity=normal"` (`35/35` passing, `0` warnings)
+  - `powershell -ExecutionPolicy Bypass -File "%USERPROFILE%\.gemini\config\skills\dev\scripts\audit_installer.ps1" -InstallerPath "<WORKSPACE_ROOT>/Mother\Installers" -StagingDir "<WORKSPACE_ROOT>/Mother\Builds\v0.2.0-hf.1" -ExpectedVersion "0.2.0-hf.1"` (`FindingCount: 0`)
 
 ---
 
@@ -201,6 +201,7 @@ flowchart TD
 | **`ADR-002`** | `v0.1.0` | Per-app power/watchdog control risked sleeping PCs mid-job. | Centralize `FleetPowerCoordinator` & `\Mother_Watchdog` exclusively inside `Mother`. |
 | **`ADR-003`** | `v0.1.0` | Legacy `v1` `snake_case` manifests coexist with `v2` `camelCase`. | Dual-schema loader in `ManifestRegistryService` + `.coexistence.json`. |
 | **`ADR-004`** | `v0.1.0` | Sister apps check `minSuiteVersion` compatibility at a glance. | Strict 3-part SemVer (`MAJOR.MINOR.PATCH`). |
-| **`ADR-005`** | `v0.2.0` | Flat `<PROGRAMS_ROOT>/` installs, tracked SDK DLLs, and stub schedulers blocked clean public distribution & autonomous Cold-Wake runs. | Adopt `%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\` (`InstallerEngineCore`), gitignore `Dev\lib\` + auto-sync in `deploy.ps1`, extract `WorkerLaunchCommandBuilder` + `FleetScheduleEvaluator` + `TerminalCommandDispatcher`, and add `ResolveSiblingSandboxRoot` containment. |
+| **`ADR-005`** | `v0.2.0` | Flat `<PROGRAMS_ROOT>/` installs, tracked SDK DLLs, and stub schedulers blocked clean public distribution & autonomous Cold-Wake runs. | Adopt `%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\` (`InstallerEngineCore`), gitignore `Dev\lib\` + auto-sync in `deploy.ps1`, extract `WorkerLaunchCommandBuilder` + `FleetScheduleEvaluator` + `TerminalCommandDispatcher`, and add `AppEnvironment` containment. |
+| **`ADR-006`** | `v0.2.0-hf.1` | Legacy isolated staging directory, custom runner flags, and secondary port bifurcation leaked harness complexity into production binaries. | Remove legacy harness code and flags, align with `Foundation v0.4.1-hf.1` (`AppEnvironment`, `UiPresentationMode.TrayOrBackground`, `InstallerRuntimeContext`), and run all tests via `APP_ISOLATED_TEST=1`. |
 
-**Zero-Touch Sister Onboarding:** Package `app\suite.manifest.json` (`schemaVersion: 2`, `sdkVersion: "0.4.0"`, `commands.startDaemon`, `workerArgs`, `residency`, `endpoints`, and `schedules[]`), install via `Foundation.Installer.InstallerEngineCore` under `StreamItAll\Mother\<AppName>\`, and call `POST /api/v1/suite/apps/reload` (or run `reload` in `Mother`'s terminal).
+**Zero-Touch Sister Onboarding:** Package `app\suite.manifest.json` (`schemaVersion: 2`, `sdkVersion: "0.4.1-hf.1"`, `commands.startDaemon`, `workerArgs`, `residency`, `endpoints`, and `schedules[]`), install via `Foundation.Installer.InstallerEngineCore` under `StreamItAll\Mother\<AppName>\`, and call `POST /api/v1/suite/apps/reload` (or run `reload` in `Mother`'s terminal).

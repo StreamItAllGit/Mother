@@ -1,5 +1,5 @@
 // @module: Mother.Core.Features.Power.FleetPowerCoordinator
-// @purpose: Post-Run Power Coordinator (StayAwake/Sleep/Shutdown) with 60s idle window and 60s cancellable countdown; hard-disabled in --test-mode.
+// @purpose: Post-Run Power Coordinator (StayAwake/Sleep/Shutdown) with 60s idle window and 60s cancellable countdown; hard-disabled in isolated/dry-run mode.
 // @depends-on: System, System.Collections.Generic, System.Diagnostics, System.Linq, System.Runtime.InteropServices, Mother.Core.Configuration, Mother.Core.Contracts, Mother.Core.Diagnostics
 // @exports: FleetPowerCoordinator
 
@@ -35,7 +35,7 @@ public sealed class FleetPowerCoordinator
     private DateTime? _countdownStartedUtc;
     private int _secondsRemaining;
 
-    public bool IsSimulated => _paths.Options.TestMode || _paths.Options.DryRun || _paths.Sandbox.IsContainedSandbox;
+    public bool IsSimulated => _paths.IsIsolatedOverride || _paths.Options.DryRun;
     public int SimulatedPowerExecutions { get; private set; }
     public event Action<PowerStatusDto>? CountdownTicked;
 
@@ -191,7 +191,7 @@ public sealed class FleetPowerCoordinator
             CountdownActive: _countdownActive,
             SecondsRemaining: _secondsRemaining,
             IdleSecondsElapsed: idleElapsed,
-            TestModeSimulated: IsSimulated,
+            Simulated: IsSimulated,
             WatchdogRegistered: watchdogRegistered);
     }
 
@@ -200,7 +200,7 @@ public sealed class FleetPowerCoordinator
         if (IsSimulated || !OperatingSystem.IsWindows())
         {
             SimulatedPowerExecutions++;
-            _diag.Log("INFO", "mother", "Power", $"[SIMULATED] Executed post-run power transition '{action}' (hard-disabled in --test-mode/--dry-run).");
+            _diag.Log("INFO", "mother", "Power", $"[SIMULATED] Executed post-run power transition '{action}' (hard-disabled in isolated/--dry-run mode).");
             return;
         }
 

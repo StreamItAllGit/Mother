@@ -31,12 +31,12 @@ public sealed class SupervisorIpc : IDisposable
     public SupervisorIpc(PathResolver paths)
     {
         ArgumentNullException.ThrowIfNull(paths);
-        if (paths.Options.TestMode || paths.Sandbox.IsContainedSandbox)
+        if (paths.IsIsolatedOverride)
         {
-            string hash = paths.ComputeSandboxMutexHash();
-            SingleInstanceMutexName = $@"Local\Mother.TestMode.{hash}";
-            SupervisorActiveMutexName = $@"Local\Mother.TestMode.Supervisor.{hash}";
-            _pipeName = $"Mother.TestMode.Pipe.{hash}";
+            string hash = paths.ComputeIsolatedMutexHash();
+            SingleInstanceMutexName = $@"Local\Mother.Isolated.{hash}";
+            SupervisorActiveMutexName = $@"Local\Mother.Isolated.Supervisor.{hash}";
+            _pipeName = $"Mother.Isolated.Pipe.{hash}";
         }
         else
         {

@@ -124,7 +124,7 @@ async function refreshAll() {
     const ver = document.getElementById('suite-version');
     if (ver) ver.textContent = `v${health.version || '0.1.0'}`;
     const modeChip = document.getElementById('chip-mode');
-    if (modeChip) modeChip.textContent = health.testMode ? 'SANDBOX' : 'PROD';
+    if (modeChip) modeChip.textContent = health.isolatedMode ? 'ISOLATED' : 'PROD';
     const pwrChip = document.getElementById('chip-power');
     if (pwrChip) {
       const rawPolicy = String(power.policy || 'StayAwake');

@@ -1,10 +1,10 @@
 # Mother
 
-- **Active Version:** `v0.2.0` (Full SemVer `MAJOR.MINOR.PATCH` for At-a-Glance Suite Interoperability; Next Horizon: `v0.2.1`)
+- **Active Version:** `v0.2.0-hf.1` (Full SemVer `MAJOR.MINOR.PATCH[-hf.N]` for At-a-Glance Suite Interoperability; Next Horizon: `v0.2.1`)
 - **License:** `MPL-2.0` ([`LICENSE`](file:///<WORKSPACE_ROOT>/Mother/LICENSE))
 - **Lifecycle State:** `active` ([`active.state`](file:///<WORKSPACE_ROOT>/Mother/active.state))
 - **Tech Stack:** .NET 8 (`net8.0-windows`, C# 12, Kestrel Reverse-Proxy Gateway `:5100`, WinForms + WebView2 Single-Window Shell, Tray Sentinel, Titanium Sky `#38bdf8` UI)
-- **Default Umbrella Install Root:** `%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\` (`http://127.0.0.1:5100/`, Tailscale CGNAT `:8500`, Sandbox `:15100`; legacy read-only `<PROGRAMS_ROOT>/Mother\` fallback supported)
+- **Default Umbrella Install Root:** `%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\` (`http://127.0.0.1:5100/`, Tailscale CGNAT `:8500`; legacy read-only `<PROGRAMS_ROOT>/Mother\` fallback supported)
 
 ---
 
@@ -15,31 +15,32 @@ Per StreamItAll release engineering conventions, `Mother` uses strict 3-part **F
 
 ---
 
-## 2. Quickstart, Tests & Shipped Artifacts (`v0.2.0`)
+## 2. Quickstart, Tests & Shipped Artifacts (`v0.2.0-hf.1`)
 
-### Build & Run in Isolated Sandbox (`Sandbox\`, Port `15100`)
+### Launch with Isolated Data / Port Overrides (`Builds\v0.2.0-hf.1\`)
 ```powershell
-cd <WORKSPACE_ROOT>/Mother\Sandbox
-.\app\Mother.exe --test-mode --headless --data-dir .\data --log-dir .\logs --port 15100
-.\app\Mother.exe --test-mode --data-dir .\data --log-dir .\logs --port 15100
+cd <WORKSPACE_ROOT>/Mother\Builds\v0.2.0-hf.1
+.\Mother.exe --tray-only --data-dir .\data --log-dir .\logs --port 5100
 ```
 
 ### Run Unit & Integration Tests (`35/35` xUnit Passing Under `/warnaserror`)
 ```powershell
 cd <WORKSPACE_ROOT>/Mother\Dev
+$env:APP_ISOLATED_TEST = "1"
 dotnet test .\Mother.slnx -c Release -p:TreatWarningsAsErrors=true --logger "console;verbosity=normal"
+Remove-Item Env:APP_ISOLATED_TEST
 ```
 
-### Distribution Outputs (`v0.2.0`)
-- **Clean Release Root:** [`Builds\v0.2.0\`](file:///<WORKSPACE_ROOT>/Mother/Builds/v0.2.0/) (`Mother.exe`, `AGENTS.md`, `LICENSE`, `app\{LICENSE,config\settings.example.json,...}`, `scripts\`)
-- **Zero-PII 4-Pillar Installer:** [`Installers\Mother-Setup-v0.2.0-win-x64.exe`](file:///<WORKSPACE_ROOT>/Mother/Installers/Mother-Setup-v0.2.0-win-x64.exe) (`audit_installer.ps1` `FindingCount: 0`)
-- **End-User Release Bundle:** [`Releases\v0.2.0\`](file:///<WORKSPACE_ROOT>/Mother/Releases/v0.2.0/) & `Releases\Latest\` (6 end-user files + `.7z` archives)
+### Distribution Outputs (`v0.2.0-hf.1`)
+- **Clean Release Root:** [`Builds\v0.2.0-hf.1\`](file:///<WORKSPACE_ROOT>/Mother/Builds/v0.2.0-hf.1/) (`Mother.exe`, `AGENTS.md`, `LICENSE`, `app\{LICENSE,config\settings.example.json,...}`, `scripts\`)
+- **Zero-PII 4-Pillar Installer:** [`Installers\Mother-Setup-v0.2.0-hf.1-win-x64.exe`](file:///<WORKSPACE_ROOT>/Mother/Installers/Mother-Setup-v0.2.0-hf.1-win-x64.exe) (`audit_installer.ps1` `FindingCount: 0`)
+- **End-User Release Bundle:** [`Releases\v0.2.0-hf.1\`](file:///<WORKSPACE_ROOT>/Mother/Releases/v0.2.0-hf.1/) & `Releases\Latest\` (6 end-user files + `.7z` archives)
 
 ---
 
 ## 3. Architecture At a Glance
 - **Application Archetype:** Shared Suite Daemon + Single Public Gateway (`:5100`) + Single-Window WebView2 Shell
-- **Shared SDK Pin:** **`Foundation v0.4.0`** (`<WORKSPACE_ROOT>/SharedLibs\Foundation\v0.4.0\` $\rightarrow$ `Dev\lib\` & `Dev\Mother.Server\wwwroot\vendor\foundation\` via `sync_foundation_sdk.py --sync-consumer`)
+- **Shared SDK Pin:** **`Foundation v0.4.1-hf.1`** (`<WORKSPACE_ROOT>/SharedLibs\Foundation\v0.4.1-hf.1\` $\rightarrow$ `Dev\lib\` & `Dev\Mother.Server\wwwroot\vendor\foundation\` via `sync_foundation_sdk.py --sync-consumer`)
 - **Per-App Residency Modes:** `Warm` (`always-on`), `Cold` (`on-demand` — `0 MB` idle standby woken on UI/API/schedule and hibernated after `idleTimeoutMinutes`), and `Disabled`.
 - **4 UI Presentation Modes:** `--suite-tab` (outer horizontal tab inside Mother), `--window` (dedicated standalone app window), `--browser` (desktop browser), and scoped Mobile PWA (`/app/<app-id>/`).
 

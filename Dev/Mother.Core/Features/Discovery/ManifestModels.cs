@@ -14,15 +14,15 @@ namespace Mother.Core.Features.Discovery;
 
 public static class CanonicalSisterDefaults
 {
-    public static readonly IReadOnlyDictionary<string, (string Name, int ProdPort, int SandboxPort, string Accent)> KnownApps =
-        new Dictionary<string, (string, int, int, string)>(StringComparer.OrdinalIgnoreCase)
+    public static readonly IReadOnlyDictionary<string, (string Name, int ProdPort, string Accent)> KnownApps =
+        new Dictionary<string, (string, int, string)>(StringComparer.OrdinalIgnoreCase)
         {
-            ["housekeeping"] = ("Housekeeping", 5178, 15178, "#f59e0b"),
-            ["shadowlibrary"] = ("ShadowLibrary", 5179, 15179, "#6366f1"),
-            ["redroom"] = ("Redroom", 5180, 15180, "#ef4444"),
-            ["greenroom"] = ("Greenroom", 8420, 15420, "#10b981"),
-            ["streamengine"] = ("StreamEngine", 8430, 15430, "#8b5cf6"),
-            ["legacy-sister-app"] = ("legacy-sister-app", 8460, 15460, "#06b6d4")
+            ["housekeeping"] = ("Housekeeping", 5178, "#f59e0b"),
+            ["shadowlibrary"] = ("ShadowLibrary", 5179, "#6366f1"),
+            ["redroom"] = ("Redroom", 5180, "#ef4444"),
+            ["greenroom"] = ("Greenroom", 8420, "#10b981"),
+            ["streamengine"] = ("StreamEngine", 8430, "#8b5cf6"),
+            ["legacy-sister-app"] = ("legacy-sister-app", 8460, "#06b6d4")
         };
 }
 
@@ -53,15 +53,10 @@ public static class ManifestParser
         string name = FirstString(root, "name", "displayName", "display_name", "shortName") ?? known.Name ?? appId;
         string version = FirstString(root, "version") ?? "0.1.0";
         string minSuite = FirstString(root, "minSuiteVersion", "min_suite_version") ?? "0.1.0";
-        string sdkVer = FirstString(root, "sdkVersion", "sdk_version") ?? "0.4.0";
+        string sdkVer = FirstString(root, "sdkVersion", "sdk_version") ?? "0.4.1-hf.1";
         string accent = FirstString(root, "brandAccent", "brand_accent", "brand_color", "accentColor") ?? known.Accent ?? "#38bdf8";
 
         int internalPort = FirstInt(root, "internalPort", "internal_port", "port") ?? known.ProdPort;
-        int sandboxPort = FirstInt(root, "sandboxPort", "sandbox_port") ?? known.SandboxPort;
-        if (sandboxPort <= 0 && internalPort > 0)
-        {
-            sandboxPort = internalPort + 10000;
-        }
 
         string installDir = FirstString(root, "installDir", "install_dir") ?? Path.GetDirectoryName(filePath) ?? string.Empty;
         string executable = FirstString(root, "executable", "launcherExecutable", "executablePath") ?? string.Empty;
@@ -118,7 +113,6 @@ public static class ManifestParser
             Executable = executable,
             WorkerArgs = ReadStringArray(root, "workerArgs", "worker_args"),
             InternalPort = internalPort,
-            SandboxPort = sandboxPort,
             ResidencyMode = normResidency,
             IdleTimeoutMinutes = Math.Clamp(idleMins, 1, 1440),
             WakeOnApiRequest = wakeApi,

@@ -45,7 +45,6 @@ public sealed class FleetScheduleEvaluator
     private readonly FleetCoexistenceArbitrator _coexistence;
     private readonly ResourceTrafficCopService _trafficCop;
     private readonly MotherDiagnostics _diag;
-    private readonly bool _testMode;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(2) };
     private readonly Dictionary<string, ScheduleRuntimeState> _states = new(StringComparer.OrdinalIgnoreCase);
 
@@ -59,7 +58,6 @@ public sealed class FleetScheduleEvaluator
     {
         ArgumentNullException.ThrowIfNull(paths);
         _stateFilePath = Path.Combine(paths.DataDirectory, "scheduler-state.json");
-        _testMode = paths.Options.TestMode;
         _supervisor = supervisor;
         _coldWake = coldWake;
         _coexistence = coexistence;
@@ -132,7 +130,7 @@ public sealed class FleetScheduleEvaluator
                 WakeOutcomeDto wake = await _coldWake.WakeAsync(app, 8000, ct).ConfigureAwait(false);
                 if (wake.Woken && sched.TriggerEndpoint.StartsWith("/", StringComparison.Ordinal))
                 {
-                    int port = _testMode ? app.SandboxPort : app.InternalPort;
+                    int port = app.InternalPort;
                     if (port > 0)
                     {
                         try
