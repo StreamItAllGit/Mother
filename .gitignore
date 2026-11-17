@@ -5,6 +5,7 @@
 /Builds/
 /Installers/
 /Releases/
+Dev/docs/*/
 
 # ==============================================================================
 # 2. Toolchains, Virtual Environments & Package Caches
