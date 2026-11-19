@@ -96,6 +96,7 @@ public static class SseAndTerminalEndpoints
             }
             catch (OperationCanceledException)
             {
+                /* normal SSE client disconnect */
             }
             finally
             {
@@ -138,6 +139,7 @@ public static class SseAndTerminalEndpoints
             }
             catch (OperationCanceledException)
             {
+                /* normal terminal SSE client disconnect */
             }
             finally
             {

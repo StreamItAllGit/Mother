@@ -1,6 +1,6 @@
 // @module: Mother.Server.Endpoints.SuiteApiEndpoints
 // @purpose: Maps canonical /api/v1/suite/* REST endpoints for fleet apps, manifests, health, settings, doctor, power, notifications, and vault metadata.
-// @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Text.Json, Microsoft.AspNetCore.Builder, Microsoft.AspNetCore.Http, Mother.Core, Mother.Core.Configuration
+// @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Text.Json, Microsoft.AspNetCore.Builder, Microsoft.AspNetCore.Http, Microsoft.AspNetCore.Mvc, Mother.Core, Mother.Core.Configuration
 // @exports: SuiteApiEndpoints
 
 using System;
@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Mother.Core;
 using Mother.Core.Configuration;
 
@@ -193,14 +194,34 @@ public static class SuiteApiEndpoints
             snapshots = runtime.Settings.ListSnapshots()
         }));
 
-        app.MapPut("/api/v1/suite/settings", (MotherSettings updated) =>
+        app.MapPut("/api/v1/suite/settings", ([FromBody] JsonElement rawPayload) =>
         {
-            var saved = runtime.Settings.Save(updated);
-            return Results.Ok(new
+            if (rawPayload.ValueKind != JsonValueKind.Object)
             {
-                settings = saved,
-                snapshots = runtime.Settings.ListSnapshots()
-            });
+                return Results.BadRequest(new
+                {
+                    errorCode = "INVALID_SETTINGS_PAYLOAD",
+                    errorMessage = "Settings payload must be a JSON object."
+                });
+            }
+
+            try
+            {
+                var saved = runtime.Settings.ApplyAndSaveJson(rawPayload);
+                return Results.Ok(new
+                {
+                    settings = saved,
+                    snapshots = runtime.Settings.ListSnapshots()
+                });
+            }
+            catch (Exception ex) when (ex is InvalidDataException or JsonException or ArgumentException)
+            {
+                return Results.BadRequest(new
+                {
+                    errorCode = "INVALID_SETTINGS_PAYLOAD",
+                    errorMessage = ex.Message
+                });
+            }
         });
 
         app.MapGet("/api/v1/suite/settings/snapshots", () =>
@@ -236,7 +257,7 @@ public static class SuiteApiEndpoints
             appId = "mother",
             name = "Mother",
             version = runtime.Version,
-            sdkVersion = "0.4.1-hf.1",
+            sdkVersion = MotherBuildConstants.SdkVersion,
             brandAccent = "#38bdf8",
             port = runtime.ResolveListenPort(),
             isolatedMode = runtime.Paths.IsIsolatedOverride,

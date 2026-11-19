@@ -3,7 +3,7 @@
 // @depends-on: CacheStorage API
 // @exports: ServiceWorker lifecycle handlers
 
-const CACHE_NAME = 'mother-shell-v0.2.0-hf.1';
+const CACHE_NAME = 'mother-shell-v0.3.0';
 const SHELL_ASSETS = ['/', '/index.html', '/css/mother.css', '/css/mother-components.css', '/js/app.js'];
 
 self.addEventListener('install', (event) => {
@@ -14,7 +14,11 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
