@@ -1,6 +1,6 @@
 // @module: Mother.App.TrayHostContext
 // @purpose: System tray ApplicationContext hosting Mother WebView2 window, TaskbarCreated restore sentinel, and IPC focus commands.
-// @depends-on: System, System.Diagnostics, System.Drawing, System.IO, System.Runtime.InteropServices, System.Windows.Forms, Mother.Core
+// @depends-on: System, System.Diagnostics, System.Drawing, System.IO, System.Runtime.InteropServices, System.Windows.Forms, Mother.Core, Mother.Core.Configuration
 // @exports: TrayHostContext
 
 using System;
@@ -10,6 +10,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Mother.Core;
+using Mother.Core.Configuration;
 
 namespace Mother.App;
 
@@ -50,13 +51,21 @@ public sealed class TrayHostContext : ApplicationContext
     private readonly Icon? _appIcon;
     private readonly MainForm _mainForm;
 
+    public new MainForm MainForm => _mainForm;
+
     public TrayHostContext(MotherRuntime runtime, string baseUrl, Action onShutdown)
     {
-        _runtime = runtime;
-        _baseUrl = baseUrl;
-        _onShutdown = onShutdown;
-        _appIcon = LoadAppIcon(runtime.Paths.BaseDirectory);
+        _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+        _baseUrl = baseUrl ?? throw new ArgumentNullException(nameof(baseUrl));
+        _onShutdown = onShutdown ?? throw new ArgumentNullException(nameof(onShutdown));
+        _appIcon = LoadAppIcon(runtime.Paths.BaseDirectory, runtime);
         _mainForm = new MainForm(runtime, baseUrl, _appIcon);
+        // Ensure the hidden Win32 handle exists so tray-only IPC BeginInvoke and automation hooks never fail.
+        _ = _mainForm.Handle;
+
+        string version = string.IsNullOrWhiteSpace(runtime.Version)
+            ? MotherBuildConstants.AppVersionFallback
+            : runtime.Version;
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open Suite Dashboard", null, (_, _) => ShowMainWindow(null));
@@ -72,7 +81,7 @@ public sealed class TrayHostContext : ApplicationContext
         _trayIcon = new NotifyIcon
         {
             Icon = _appIcon ?? SystemIcons.Application,
-            Text = $"Mother v{runtime.Version}",
+            Text = $"Mother v{version}",
             ContextMenuStrip = menu,
             Visible = true
         };
@@ -84,21 +93,7 @@ public sealed class TrayHostContext : ApplicationContext
             _trayIcon.Visible = true;
         });
 
-        _runtime.Ipc.CommandReceived += cmd =>
-        {
-            if (_mainForm.IsDisposed) return;
-            _mainForm.BeginInvoke(() =>
-            {
-                if (cmd.StartsWith("tab:", StringComparison.OrdinalIgnoreCase))
-                {
-                    ShowMainWindow(cmd.Substring(4));
-                }
-                else
-                {
-                    ShowMainWindow(null);
-                }
-            });
-        };
+        _runtime.Ipc.CommandReceived += OnIpcCommandReceived;
 
         string? browserTab = _runtime.Paths.Options.BrowserAppId;
         string? windowTab = _runtime.Paths.Options.SuiteTabAppId ?? _runtime.Paths.Options.WindowAppId;
@@ -117,6 +112,7 @@ public sealed class TrayHostContext : ApplicationContext
 
     public void ShowMainWindow(string? suiteTab)
     {
+        if (_mainForm.IsDisposed) return;
         if (!_mainForm.Visible) _mainForm.Show();
         if (_mainForm.WindowState == FormWindowState.Minimized) _mainForm.WindowState = FormWindowState.Normal;
         _mainForm.Activate();
@@ -126,8 +122,32 @@ public sealed class TrayHostContext : ApplicationContext
         }
     }
 
+    private void OnIpcCommandReceived(string cmd)
+    {
+        if (_mainForm.IsDisposed || !_mainForm.IsHandleCreated) return;
+        try
+        {
+            _mainForm.BeginInvoke(() =>
+            {
+                if (cmd.StartsWith("tab:", StringComparison.OrdinalIgnoreCase))
+                {
+                    ShowMainWindow(cmd.Substring(4));
+                }
+                else
+                {
+                    ShowMainWindow(null);
+                }
+            });
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException)
+        {
+            _runtime.Diagnostics.Log("DEBUG", "mother", "TrayIpc", $"IPC focus command skipped during shutdown: {ex.Message}");
+        }
+    }
+
     private void ExitSuite()
     {
+        _runtime.Ipc.CommandReceived -= OnIpcCommandReceived;
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
         _sentinel.Dispose();
@@ -140,6 +160,7 @@ public sealed class TrayHostContext : ApplicationContext
     {
         if (disposing)
         {
+            _runtime.Ipc.CommandReceived -= OnIpcCommandReceived;
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
             _sentinel.Dispose();
@@ -148,7 +169,7 @@ public sealed class TrayHostContext : ApplicationContext
         base.Dispose(disposing);
     }
 
-    private static Icon? LoadAppIcon(string baseDir)
+    private static Icon? LoadAppIcon(string baseDir, MotherRuntime runtime)
     {
         string[] candidates =
         {
@@ -157,19 +178,28 @@ public sealed class TrayHostContext : ApplicationContext
         };
         foreach (string p in candidates)
         {
-            if (File.Exists(p)) return new Icon(p);
+            if (!File.Exists(p)) continue;
+            try
+            {
+                return new Icon(p);
+            }
+            catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
+            {
+                runtime.Diagnostics.Log("WARN", "mother", "TrayIcon", $"Unable to load icon '{p}': {ex.Message}");
+            }
         }
         return null;
     }
 
-    private static void OpenInBrowser(string url)
+    private void OpenInBrowser(string url)
     {
         try
         {
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
-        catch
+        catch (Exception ex)
         {
+            _runtime.Diagnostics.Log("WARN", "mother", "TrayBrowser", $"Unable to launch browser for '{url}': {ex.Message}");
         }
     }
 }
