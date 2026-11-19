@@ -18,7 +18,7 @@ namespace Mother.Tests;
 public sealed class ManifestAndTrafficCopTests
 {
     [Fact]
-    public void ManifestRegistry_ParsesBothV1AndV2ManifestsWithCanonicalDefaults()
+    public void ManifestRegistry_ParsesBothV1AndV2ManifestsWithoutHardcodedFallbacks()
     {
         using var scope = new TempWorkspaceScope();
         string manifestsDir = Path.Combine(scope.DataDir, "manifests");
@@ -56,7 +56,7 @@ public sealed class ManifestAndTrafficCopTests
         Assert.Equal("v1", hk.DetectedSchemaFormat);
         Assert.Equal("v2", sl.DetectedSchemaFormat);
         Assert.Equal(5179, runtime.Manifests.GetEffectivePort(sl));
-        Assert.Equal(6, CanonicalSisterDefaults.KnownApps.Count);
+        Assert.Equal(2, apps.Count);
     }
 
     [Fact]

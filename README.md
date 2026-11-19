@@ -1,61 +1,108 @@
+<div align="center">
+
+<img src="Dev/Assets/logo.png" alt="Mother Logo" width="96" />
+
 # Mother
 
-- **Active Version:** `v0.2.0-hf.1` (Full SemVer `MAJOR.MINOR.PATCH[-hf.N]` for At-a-Glance Suite Interoperability; Next Horizon: `v0.2.1`)
-- **License:** `MPL-2.0` ([`LICENSE`](file:///<WORKSPACE_ROOT>/Mother/LICENSE))
-- **Lifecycle State:** `active` ([`active.state`](file:///<WORKSPACE_ROOT>/Mother/active.state))
-- **Tech Stack:** .NET 8 (`net8.0-windows`, C# 12, Kestrel Reverse-Proxy Gateway `:5100`, WinForms + WebView2 Single-Window Shell, Tray Sentinel, Titanium Sky `#38bdf8` UI)
-- **Default Umbrella Install Root:** `%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\` (`http://127.0.0.1:5100/`, Tailscale CGNAT `:8500`; legacy read-only `<PROGRAMS_ROOT>/Mother\` fallback supported)
+A universal, pluggable Windows suite daemon, reverse-proxy API gateway, and disk I/O traffic cop that coordinates background worker apps through a single tray icon and web shell.
+
+![Version](https://img.shields.io/badge/version-0.3.0--beta-blue?style=flat) ![License](https://img.shields.io/badge/license-MPL--2.0-green?style=flat) ![Runtime](https://img.shields.io/badge/runtime-.NET%208-512BD4?style=flat) ![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey?style=flat)
+
+**Roadmap Progress (toward v1.0.0):** `▓▓▓▓░░░░░░` **40%** — `v0.3.0` Public Beta Universal Core, `Foundation v0.5.1` SDK alignment, and self-contained packaging complete; preparing `v0.4.0` Zero-Update App Onboarding.
+
+</div>
+
+> **Release Status: Beta (Pre-1.0 — `v0.3.0`)**
+> Pre-1.0 builds ship as Beta (`--prerelease`) while universal plug-in onboarding (`v0.4.0`), multi-app soak burn-in (`v0.5.0`), and safe staged self-updating (`v0.6.0`) are finalized ahead of `v1.0.0`.
 
 ---
 
-## 1. What It Is & Core Goal
-**Mother** is the Single Shared Suite Daemon (`:5100`), unified system tray sentinel, reverse-proxy API gateway, schedule traffic cop, autonomous Cold-Wake scheduler, post-run power coordinator, and cross-app coexistence broker for the 6 sister applications (**Housekeeping** `:5178`, **ShadowLibrary** `:5179`, **Redroom** `:5180`, **Greenroom** `:8420`, **StreamEngine** `:8430`, and **legacy-sister-app** `:8460`).
+## About
 
-Per StreamItAll release engineering conventions, `Mother` uses strict 3-part **Full Semantic Versioning (`MAJOR.MINOR.PATCH`)** with zero pre-release suffix ambiguity so sister apps can verify `minSuiteVersion` compatibility at a single glance.
+`Mother` replaces scattered system tray icons, duplicate watchdogs, and colliding overnight drive tasks with one lightweight Windows supervisor and reverse-proxy gateway (`http://127.0.0.1:5100/`). Any application that exposes a `suite.manifest.json` (`v2`) or `mother.manifest.json` (`v1`) file—such as `demo-worker`, `media-tool`, headless CLI workers, or optional StreamItAll suite members—can run behind `Mother`'s single-window WebView2 shell, desktop browser tab, or mobile PWA.
 
----
+Zero-to-many installations (`0..N` registered apps) work out of the box: `Mother` ships with zero hardcoded application defaults, boots cleanly into an actionable **0-App Empty State** (`Fleet Doctor` returns `"pass"`), and discovers installed apps dynamically to coordinate startup, idle hibernation, disk lock contention, and post-run OS sleep safely.
 
-## 2. Quickstart, Tests & Shipped Artifacts (`v0.2.0-hf.1`)
+## Key Features
 
-### Launch with Isolated Data / Port Overrides (`Builds\v0.2.0-hf.1\`)
+- **Single Tray Sentinel & 4-Mode UI:** Hosts `0..N` dynamically discovered apps inside one Titanium Sky (`#38bdf8`) WebView2 shell (with interactive browser fallback if WebView2 runtime is absent), dynamic tab switching (`Alt+1..9`), standalone pop-out windows (`--window`), browser tabs (`--browser`), and a responsive mobile PWA.
+- **Autonomous Cold-Wake & Idle Hibernation:** Keeps `Cold` (`on-demand`) apps at `0 MB` RAM until requested via UI, API, or `schedules[]`, then hibernates them automatically once idle; headless workers (`internalPort <= 0`) fail closed cleanly with `503 NO_HTTP_ENDPOINT`.
+- **Disk Traffic Cop & Coexistence Broker:** Inspects PID-safe `.hklock` sentinels to purge stale locks, defers colliding schedules (`POST /api/v1/scheduler/defer`), and aligns shared storage presets via `.coexistence.json` (`schemaVersion: 2`).
+- **Safe Post-Run Power Coordinator:** Inhibits OS sleep until every supervised app reports zero active/queued jobs and zero live locks, then starts a 60-second cancellable countdown before `Sleep` or `Shutdown`.
+- **Offline QR Pairing, Doctor & Settings v2 Rollback:** Includes offline ISO/IEC 18004 SVG QR pairing (`/api/v1/suite/qr.svg`), a docked `Ctrl+\`` diagnostic terminal, SQLite WAL telemetry with `VACUUM INTO` backups, non-destructive `data/config/settings.json` (`schemaVersion: 2`) migration, and a 20-snapshot rollback history (`Ctrl+S`).
+
+## Getting Started
+
+### Prerequisites
+
+- Windows 10 or Windows 11 (`win-x64`)
+- End-user installers (`Mother-Setup-v0.3.0-win-x64.exe`) and portable archives (`Mother-v0.3.0-win-x64-Portable.zip`) ship **self-contained** (`win-x64`, no separate .NET Runtime install required)
+- Building from source requires **.NET 8 SDK** and the `Foundation v0.5.1` SDK bundle (see [CONTRIBUTING.md](CONTRIBUTING.md))
+- Microsoft Edge WebView2 Evergreen Runtime (for embedded desktop shell mode; includes an automatic browser-launch fallback panel if missing)
+
+### Quick Try
+
 ```powershell
-cd <WORKSPACE_ROOT>/Mother\Builds\v0.2.0-hf.1
+# Launch Mother in tray mode using isolated local directories
+cd Builds\v0.3.0
 .\Mother.exe --tray-only --data-dir .\data --log-dir .\logs --port 5100
 ```
 
-### Run Unit & Integration Tests (`35/35` xUnit Passing Under `/warnaserror`)
 ```powershell
-cd <WORKSPACE_ROOT>/Mother\Dev
+# Run the full Release unit & integration test suite (40/40 passing, zero warnings)
 $env:APP_ISOLATED_TEST = "1"
-dotnet test .\Mother.slnx -c Release -p:TreatWarningsAsErrors=true --logger "console;verbosity=normal"
+dotnet test Dev\Mother.slnx -c Release -p:TreatWarningsAsErrors=true --logger "console;verbosity=normal"
 Remove-Item Env:APP_ISOLATED_TEST
 ```
 
-### Distribution Outputs (`v0.2.0-hf.1`)
-- **Clean Release Root:** [`Builds\v0.2.0-hf.1\`](file:///<WORKSPACE_ROOT>/Mother/Builds/v0.2.0-hf.1/) (`Mother.exe`, `AGENTS.md`, `LICENSE`, `app\{LICENSE,config\settings.example.json,...}`, `scripts\`)
-- **Zero-PII 4-Pillar Installer:** [`Installers\Mother-Setup-v0.2.0-hf.1-win-x64.exe`](file:///<WORKSPACE_ROOT>/Mother/Installers/Mother-Setup-v0.2.0-hf.1-win-x64.exe) (`audit_installer.ps1` `FindingCount: 0`)
-- **End-User Release Bundle:** [`Releases\v0.2.0-hf.1\`](file:///<WORKSPACE_ROOT>/Mother/Releases/v0.2.0-hf.1/) & `Releases\Latest\` (6 end-user files + `.7z` archives)
+<details>
+<summary>Developer verification, CLI overrides, and packaging scripts</summary>
 
----
+```powershell
+# Stage portable clean-root build (Mother.App self-contained + NativeAOT/trimmed Mother.exe)
+powershell -ExecutionPolicy Bypass -File "Dev\deploy.ps1" -BuildOnly
 
-## 3. Architecture At a Glance
-- **Application Archetype:** Shared Suite Daemon + Single Public Gateway (`:5100`) + Single-Window WebView2 Shell
-- **Shared SDK Pin:** **`Foundation v0.4.1-hf.1`** (`<WORKSPACE_ROOT>/SharedLibs\Foundation\v0.4.1-hf.1\` $\rightarrow$ `Dev\lib\` & `Dev\Mother.Server\wwwroot\vendor\foundation\` via `sync_foundation_sdk.py --sync-consumer`)
-- **Per-App Residency Modes:** `Warm` (`always-on`), `Cold` (`on-demand` — `0 MB` idle standby woken on UI/API/schedule and hibernated after `idleTimeoutMinutes`), and `Disabled`.
-- **4 UI Presentation Modes:** `--suite-tab` (outer horizontal tab inside Mother), `--window` (dedicated standalone app window), `--browser` (desktop browser), and scoped Mobile PWA (`/app/<app-id>/`).
+# Package the Windows installer, Portable ZIP, SHA256SUMS.txt, and Releases\v0.3.0\ + Latest\
+powershell -ExecutionPolicy Bypass -File "Dev\package_installer.ps1"
 
----
+# Run one-shot isolated System Doctor diagnostics
+.\Builds\v0.3.0\Mother.exe --diagnose --data-dir "$env:TEMP\mother_diag\data" --log-dir "$env:TEMP\mother_diag\logs"
+```
 
-## 4. Project Navigation, Root Quartet & 4-Doc Manual Shelf
-- **Root Documentation Quartet:**
-  - **Feature Inventory & Coexistence Map:** [`FEATURES.md`](file:///<WORKSPACE_ROOT>/Mother/FEATURES.md)
-  - **Milestones & Strategic Horizon:** [`ROADMAP.md`](file:///<WORKSPACE_ROOT>/Mother/ROADMAP.md)
-  - **Version History Ledger:** [`CHANGELOG.md`](file:///<WORKSPACE_ROOT>/Mother/CHANGELOG.md)
-- **4-Document Manual Shelf (`Dev\docs\`):**
-  - **📐 Architecture & Engineering:** [`Dev\docs\ARCHITECTURE.md`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/ARCHITECTURE.md)
-  - **📘 User Guide:** [`Dev\docs\USER_GUIDE.md`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/USER_GUIDE.md)
-  - **🛠️ Operations Runbook:** [`Dev\docs\OPERATIONS.md`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/OPERATIONS.md)
-  - **🔌 Interfaces & API Reference:** [`Dev\docs\INTERFACES.md`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/INTERFACES.md)
-- **Blueprints & Diagnostic Reports:**
-  - **Implementation Plans:** [`Dev\docs\plans\v0.2.0.2026-11-15.md`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/plans/v0.2.0.2026-11-15.md) | [`Dev\docs\plans\v0.1.0.2026-11-12.md`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/plans/v0.1.0.2026-11-12.md)
-  - **Diagnostic Reports:** [`Dev\docs\reports\archive\`](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/reports/archive/)
+Supported runtime overrides: `--data-dir <dir>`, `--config <file>`, `--log-dir <dir>`, `--port <int>`, `--programs-dir <dir>`, `--suite-tab <appId>`, `--window <appId>`, `--browser [<appId>]`, `--tray-only`, `--dry-run`, `--diagnose`, `--version`, `--help`.
+
+</details>
+
+## Release Channels
+
+Releases follow an explicit human-reviewed publishing flow across three distribution channels:
+
+- **GitHub Releases (`--prerelease` Beta):** Versioned Windows Setup installers (`Mother-Setup-v0.3.0-win-x64.exe`), self-contained portable ZIPs (`Mother-v0.3.0-win-x64-Portable.zip`), release docs, and `SHA256SUMS.txt` checksums on `StreamItAllGit/Mother`.
+- **Google Drive Public Mirror:** Public folder [`Personal/Mother`](https://drive.google.com/drive/folders/1WmIfaxbTNv8ZDWUMfNjis-vQSPP_ocHH) (populated alongside approved beta/GA releases).
+- **Discord Devlogs:** Release summaries posted to community testers upon release sign-off.
+- **Project Hub Page:** Optional public web overview managed manually outside automated release scripts.
+
+## Project Structure
+
+- `Dev/` — Source code (`Mother.Core`, `Mother.Server`, `Mother.App`, `Mother.Launcher`, `Mother.Installer`), xUnit tests (`Mother.Tests`), and technical manuals (`Dev/docs/`)
+- `Builds/` — Local compiled portable staging outputs (`Builds/v0.3.0/`)
+- `Releases/` — Packaged 7-file end-user release bundles (`Mother-Setup`, `Portable.zip`, docs, `SHA256SUMS.txt`) and NTFS-hardlinked `Latest/`
+- `Archive/` — Compressed version snapshots
+
+## Documentation
+
+- [Features](FEATURES.md) — Current capabilities, extension points, and coexistence matrix
+- [Roadmap](ROADMAP.md) — Milestone trajectory from `v0.3.0` Public Beta through `v1.0.0`
+- [Changelog](CHANGELOG.md) — Version history ledger
+- [Contributing](CONTRIBUTING.md) — Contributor setup (`Foundation v0.5.1` SDK ZIP), build, and test guide
+- [Security Policy](SECURITY.md) — Vulnerability disclosure, network binding, and containment guarantees
+- [User Guide](Dev/docs/USER_GUIDE.md) — Installation, portable setup, UI walkthrough, and workflows
+- [Architecture](Dev/docs/ARCHITECTURE.md) — System design, symbol registry, and design decisions
+- [Interfaces](Dev/docs/INTERFACES.md) — REST API, SSE streams, manifests, and database schema
+- [Operations](Dev/docs/OPERATIONS.md) — CLI flags, configuration, backups, and incident playbooks
+
+## License & Legal
+
+Distributed under the **Mozilla Public License Version 2.0 (`MPL-2.0`)** ([LICENSE](LICENSE)).
+
+`Mother` is clean-room infrastructure containing zero proprietary third-party binaries, secrets, or personal configuration data. Optional StreamItAll suite applications referenced as examples are independent software modules discovered dynamically via user-installed manifests.

@@ -314,7 +314,7 @@ public sealed class V020FeaturesTests
     {
         using var scope = new TempWorkspaceScope();
         var appEnv = new AppEnvironment("mother", new[] { "--data-dir", scope.DataDir }, scope.BaseDir, "install-config.json");
-        var theme = MotherInstallerRunner.BuildOptions(appEnv, "0.2.0-hf.1");
+        var theme = MotherInstallerRunner.BuildOptions(appEnv, "0.3.0");
 
         Assert.Equal("StreamItAll", theme.StudioName);
         Assert.Equal("Mother", theme.SuiteName);

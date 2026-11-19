@@ -94,26 +94,6 @@
           "kind": "build",
           "isDefault": false
         }
-      },
-      {
-        "label": "Audit Mother Scaffold",
-        "type": "shell",
-        "command": "powershell",
-        "args": [
-          "-ExecutionPolicy",
-          "Bypass",
-          "-File",
-          "${userHome}/.gemini/config/skills/graduate/scripts/scaffold_project.ps1",
-          "-ProjectName",
-          "Mother",
-          "-Group",
-          "Personal",
-          "-AuditOnly"
-        ],
-        "group": {
-          "kind": "test",
-          "isDefault": false
-        }
       }
     ]
   },

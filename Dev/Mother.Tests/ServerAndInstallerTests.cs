@@ -46,6 +46,7 @@ public sealed class ServerAndInstallerTests
           "schemaVersion": 2,
           "appId": "shadowlibrary",
           "name": "ShadowLibrary",
+          "internalPort": 5179,
           "mutuallyExclusiveWith": ["housekeeping"]
         }
         """);
@@ -131,16 +132,16 @@ public sealed class ServerAndInstallerTests
         Directory.CreateDirectory(Path.Combine(stageDir, "app"));
         Directory.CreateDirectory(Path.Combine(stageDir, "scripts"));
         File.WriteAllText(Path.Combine(stageDir, "Mother.exe"), "stub-launcher");
-        File.WriteAllText(Path.Combine(stageDir, "AGENTS.md"), "# Mother\n");
         File.WriteAllText(Path.Combine(stageDir, "app", "Mother.App.exe"), "stub-app");
+        File.WriteAllText(Path.Combine(stageDir, "app", "LICENSE"), "MPL-2.0\n");
         File.WriteAllText(Path.Combine(stageDir, "scripts", "run.bat"), "@echo off\r\n");
         ZipFile.CreateFromDirectory(stageDir, payloadZip);
 
         var descriptor = new InstallerAppDescriptor(
             ProductName: "Mother",
             DisplayName: "Mother",
-            Publisher: "Personal Suite",
-            Version: "0.2.0-hf.1",
+            Publisher: "StreamItAll",
+            Version: "0.3.0",
             MainExecutableRelativePath: Path.Combine("app", "Mother.App.exe"),
             BrandAccentHex: "#38bdf8");
 

@@ -127,6 +127,10 @@ try {
     New-Item -ItemType Directory -Path $StageAppDir, $StageConfigDir, $StageScriptsDir, $StageInteractiveDir, $LauncherTemp -Force | Out-Null
 
     Write-Host "[1/3] Publishing Mother.App (self-contained win-x64, no IL trim) -> app\..." -ForegroundColor Yellow
+    $AppObjDir = Join-Path $DevRoot "Mother.App\obj"
+    if (Test-Path -LiteralPath $AppObjDir) {
+        Get-ChildItem -LiteralPath $AppObjDir -Recurse -File -Filter "*.deps.json" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
     $AppProj = Join-Path $DevRoot "Mother.App\Mother.App.csproj"
     $AppPublishArgs = @(
         "publish", $AppProj,

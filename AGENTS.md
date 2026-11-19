@@ -1,16 +1,15 @@
-# Project Context: Mother (`<WORKSPACE_ROOT>/Mother\`)
+# Project Context: Mother
 
-- **Role:** Single Shared Suite Daemon (:5100), Telemetry Hub & Watchdog (Tier A Backend, Full SemVer `v0.2.0-hf.1`, `Foundation v0.4.1-hf.1`, `MPL-2.0`).
-- **Workspace:** [`Dev\`](file:///<WORKSPACE_ROOT>/Mother/Dev/) (Code, Release & Isolated Tests via `APP_ISOLATED_TEST=1`)
-- **Prod & SDK (Read-Only):** `%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\` (legacy `<PROGRAMS_ROOT>/Mother\`) | [`Foundation\`](file:///<WORKSPACE_ROOT>/Foundation/) (`Dev\lib\`)
+- **Role:** Universal Pluggable Shared Suite Daemon (`:5100`), Gateway & Watchdog (`v0.3.0 -> v0.4.0` Beta, `MPL-2.0`).
+- **Boundaries:** Code/tests live in `Dev\` (`APP_ISOLATED_TEST=1` isolated tests); canonical prod (`%LOCALAPPDATA%\Programs\StreamItAll\Mother\Mother\`), `Foundation\`, and Dev Bible standards are read-only; permanent human review gate (`requireHumanReviewBeforePush: true`) before any push or release.
 
-## 1. Root Documentation Quartet & Lifecycle State
-- **Quartet & State:** [`README.md`](file:///<WORKSPACE_ROOT>/Mother/README.md) | [`FEATURES.md`](file:///<WORKSPACE_ROOT>/Mother/FEATURES.md) | [`ROADMAP.md`](file:///<WORKSPACE_ROOT>/Mother/ROADMAP.md) | [`CHANGELOG.md`](file:///<WORKSPACE_ROOT>/Mother/CHANGELOG.md) | [`active.state`](file:///<WORKSPACE_ROOT>/Mother/active.state)
+## 1. Root Quartet & State
+- [README.md](README.md) | [FEATURES.md](FEATURES.md) | [ROADMAP.md](ROADMAP.md) | [CHANGELOG.md](CHANGELOG.md) | [SECURITY.md](SECURITY.md) | [CONTRIBUTING.md](CONTRIBUTING.md) | [active.state](active.state) | [LICENSE](LICENSE)
 
-## 2. Technical Manuals & Active Engineering (Dev\docs\)
-- **Manual Shelf (@devv / @tessa):** [ARCHITECTURE.md](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/ARCHITECTURE.md) | [INTERFACES.md](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/INTERFACES.md) | [USER_GUIDE.md](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/USER_GUIDE.md) | [OPERATIONS.md](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/OPERATIONS.md)
-- **Plans (@pland) & Reports (@inspecter):** [Dev\docs\plans\](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/plans/) | [Dev\docs\reports\archive\](file:///<WORKSPACE_ROOT>/Mother/Dev/docs/reports/archive/)
+## 2. Manual Shelf (`Dev\docs\`)
+- [ARCHITECTURE.md](Dev/docs/ARCHITECTURE.md) | [INTERFACES.md](Dev/docs/INTERFACES.md) | [USER_GUIDE.md](Dev/docs/USER_GUIDE.md) | [OPERATIONS.md](Dev/docs/OPERATIONS.md)
+- Local-only plans & reports (gitignored): `Dev/docs/plans/`, `Dev/docs/reports/`
 
-## 3. Governance & Notion Human Hub ("The Me Hub")
-- **Dev Bible (`00`–`19`):** [`00_CORE_INVARIANTS_AND_GLOSSARY.md`](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/00_CORE_INVARIANTS_AND_GLOSSARY.md) | [`<DEV_BIBLE>\README.md`](file:///<WORKSPACE_ROOT>/<DEV_BIBLE>/README.md)
-- **Notion (🛠️ Projects):** `<NOTION_PROJECT_PAGE_ID>` (`Project = "Mother"` in `collection://<NOTION_TASK_LIST_COLLECTION>`)
+## 3. Governance, Discord & Notion
+- **Standards & QA:** Dev Bible standards (read-only) | `@dean` Dual-Gate | `@inspecter` Unit & Log QA | `@tessa` Docs
+- **Discord & Notion:** Release-only `/post` via `active.state` `discordPost` tagging `@StreamDoesDev` (human-gated); Notion `<NOTION_PROJECT_PAGE_ID>` / `<NOTION_TASK_LIST_COLLECTION>` (manual-only; local IDs in gitignored `Dev/data/notion_hub.local.json`)

@@ -265,6 +265,13 @@ async function boot() {
   }
 
   await refreshAll();
+  const requestedRoute = new URLSearchParams(window.location.search).get('route');
+  if (requestedRoute) {
+    const cleanRoute = requestedRoute.trim().toLowerCase();
+    if (['fleet', 'traffic-cop', 'doctor', 'settings'].includes(cleanRoute)) {
+      setRoute(cleanRoute);
+    }
+  }
   const requestedTab = new URLSearchParams(window.location.search).get('tab');
   if (requestedTab) {
     const matched = getOuterTabs().find((t) => t.appId.toLowerCase() === requestedTab.trim().toLowerCase());

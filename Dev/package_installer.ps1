@@ -108,7 +108,7 @@ function Convert-ToSanitizedReleaseMarkdown {
     $txt = [regex]::Replace($txt, '(?i)\bDev[\\/](docs|Mother\.[A-Za-z]+|scripts)[\\/]?[^\s`)]*', 'app/')
     $txt = $txt -replace '\$\\rightarrow\$', '->'
 
-    if ($Kind -eq "README") {
+    if ($Kind -eq "README" -and $txt -notmatch '(?m)^##\s+License\s+&\s+Legal') {
         $txt = $txt.TrimEnd() + "`n`n---`n`n" + '## License & Legal' + "`n`n" + 'Mother is licensed under the **Mozilla Public License Version 2.0 (`MPL-2.0`)**. See `LICENSE` (`app\LICENSE` in portable/installed builds) for the complete license text.' + "`n"
     }
     elseif ($Kind -eq "FEATURES") {
@@ -252,18 +252,6 @@ try {
     Write-Host "Verified --version output: $verOut" -ForegroundColor Gray
 
     Write-Host "[4/4] Assembling 7-file Releases\v$Version\, Portable ZIP, hardlinked Latest\, and .7z archives..." -ForegroundColor Cyan
-    Copy-Item -LiteralPath $PayloadZip -Destination $PortableZipPath -Force
-
-    $portableArchive = [System.IO.Compression.ZipFile]::OpenRead($PortableZipPath)
-    try {
-        $badEntries = @($portableArchive.Entries | Where-Object { $_.Name -like "*Setup*.exe" } | ForEach-Object { $_.FullName })
-        if ($badEntries.Count -gt 0) {
-            throw "Portable ZIP violation: unexpected installer executable(s) found: $($badEntries -join ', ')"
-        }
-    }
-    finally {
-        $portableArchive.Dispose()
-    }
 
     $UserGuidePath = Join-Path $DevRoot "docs\USER_GUIDE.md"
     $RawReadme = if (Test-Path -LiteralPath $UserGuidePath) {
@@ -300,13 +288,41 @@ try {
     )
     Write-Utf8NoBomText -Path (Join-Path $ReleasesDir "RELEASE_NOTES.md") -Content (($ReleaseNotesLines -join "`n") + "`n")
 
+    $PortableStageDir = Join-Path $WorkRoot "portable_stage"
+    if (Test-Path -LiteralPath $PortableStageDir) { Remove-Item -LiteralPath $PortableStageDir -Recurse -Force }
+    New-Item -ItemType Directory -Path $PortableStageDir -Force | Out-Null
+    Copy-Item (Join-Path $StagingBundleDir "*") $PortableStageDir -Recurse -Force
+    foreach ($relDoc in @("README.md", "FEATURES.md", "CHANGELOG.md", "RELEASE_NOTES.md")) {
+        $docFull = Join-Path $ReleasesDir $relDoc
+        if (Test-Path -LiteralPath $docFull) {
+            Copy-Item -LiteralPath $docFull -Destination (Join-Path $PortableStageDir $relDoc) -Force
+        }
+    }
+    if (Test-Path -LiteralPath $PortableZipPath) { Remove-Item -LiteralPath $PortableZipPath -Force }
+    [System.IO.Compression.ZipFile]::CreateFromDirectory(
+        $PortableStageDir,
+        $PortableZipPath,
+        [System.IO.Compression.CompressionLevel]::Optimal,
+        $false)
+
+    $portableArchive = [System.IO.Compression.ZipFile]::OpenRead($PortableZipPath)
+    try {
+        $badEntries = @($portableArchive.Entries | Where-Object { $_.Name -like "*Setup*.exe" } | ForEach-Object { $_.FullName })
+        if ($badEntries.Count -gt 0) {
+            throw "Portable ZIP violation: unexpected installer executable(s) found: $($badEntries -join ', ')"
+        }
+    }
+    finally {
+        $portableArchive.Dispose()
+    }
+
     $SumTargets = @(Get-ChildItem -LiteralPath $ReleasesDir -File |
         Where-Object { $_.Name -ne "SHA256SUMS.txt" } |
         Sort-Object { $_.Name.ToLowerInvariant() })
 
     $HashLines = @()
     foreach ($sumFile in $SumTargets) {
-        $hash = (Get-FileHash -LiteralPath $sumFile.FullName -Algorithm SHA256).Hash.ToUpperInvariant()
+        $hash = (Get-FileHash -LiteralPath $sumFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         $HashLines += "$hash  $($sumFile.Name)"
     }
     Write-Utf8NoBomText -Path (Join-Path $ReleasesDir "SHA256SUMS.txt") -Content (($HashLines -join "`n") + "`n")
@@ -370,7 +386,7 @@ try {
     # Verify central Releases\<Group>\<Project> junction points to $ReleasesRoot when running in Projects root
     $ExpectedParentLeaf = 'Proj' + 'ects'
     if ((Split-Path -Leaf $ProjectsRoot) -eq $ExpectedParentLeaf) {
-        $CentralGroupDir = Join-Path (Join-Path $ProjectsRoot "Releases") $GroupContainer.Name
+        $CentralGroupDir = Join-Path (Join-Path $ProjectsRoot "Releases") (Split-Path -Leaf $GroupContainer)
         $CentralJunction = Join-Path $CentralGroupDir (Split-Path -Leaf $OuterContainer)
         New-Item -ItemType Directory -Path $CentralGroupDir -Force | Out-Null
         if (-not (Test-Path -LiteralPath $CentralJunction)) {

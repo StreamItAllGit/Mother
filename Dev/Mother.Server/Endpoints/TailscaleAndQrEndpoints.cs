@@ -26,15 +26,16 @@ public static class TailscaleAndQrEndpoints
 
     public static void MapTailscaleAndQrEndpoints(this WebApplication app, MotherRuntime runtime)
     {
-        app.MapGet("/api/v1/suite/qr.svg", (HttpContext ctx, string? url) =>
+        app.MapGet("/api/v1/suite/qr.svg", (HttpContext ctx, string? url, string? target) =>
         {
-            string target = string.IsNullOrWhiteSpace(url)
+            string? requested = !string.IsNullOrWhiteSpace(url) ? url : target;
+            string payload = string.IsNullOrWhiteSpace(requested)
                 ? $"http://127.0.0.1:{runtime.ResolveListenPort()}/"
-                : url.Trim();
+                : requested.Trim();
 
             try
             {
-                string svg = BuildQrSvg(target);
+                string svg = BuildQrSvg(payload);
                 ctx.Response.Headers.CacheControl = "no-store";
                 return Results.Content(svg, "image/svg+xml; charset=utf-8");
             }

@@ -81,8 +81,9 @@ internal sealed class TempWorkspaceScope : IDisposable
                 Directory.Delete(RootDir, recursive: true);
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            System.Diagnostics.Trace.TraceWarning($"TempWorkspaceScope cleanup deferred: {ex.Message}");
         }
     }
 }

@@ -7,6 +7,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Foundation.UI.Desktop;
@@ -38,6 +39,7 @@ public sealed class MainForm : Form
     private Label? _fallbackBodyLabel;
     private TextBox? _fallbackUrlBox;
     private bool _allowClose;
+    private static int _loaderDllFolderConfigured;
 
     public bool IsFallbackActive => _fallbackPanel is not null && _fallbackPanel.Visible;
 
@@ -118,10 +120,19 @@ public sealed class MainForm : Form
         Close();
     }
 
-    private string BuildTargetUrl(string? suiteTab) =>
-        string.IsNullOrWhiteSpace(suiteTab)
-            ? _baseUrl
-            : $"{_baseUrl.TrimEnd('/')}/?tab={Uri.EscapeDataString(suiteTab)}";
+    private string BuildTargetUrl(string? suiteTab)
+    {
+        if (string.IsNullOrWhiteSpace(suiteTab))
+        {
+            return _baseUrl;
+        }
+        if (suiteTab.StartsWith("route:", StringComparison.OrdinalIgnoreCase))
+        {
+            string routeName = suiteTab["route:".Length..].Trim();
+            return $"{_baseUrl.TrimEnd('/')}/?route={Uri.EscapeDataString(routeName)}";
+        }
+        return $"{_baseUrl.TrimEnd('/')}/?tab={Uri.EscapeDataString(suiteTab)}";
+    }
 
     private Task EnsureInitializedAsync()
     {
@@ -140,6 +151,13 @@ public sealed class MainForm : Form
     {
         try
         {
+            string archFolder = Environment.Is64BitProcess ? "win-x64" : "win-x86";
+            string nativeLoaderDir = Path.Combine(AppContext.BaseDirectory, "runtimes", archFolder, "native");
+            if (File.Exists(Path.Combine(nativeLoaderDir, "WebView2Loader.dll")) &&
+                Interlocked.Exchange(ref _loaderDllFolderConfigured, 1) == 0)
+            {
+                CoreWebView2Environment.SetLoaderDllFolderPath(nativeLoaderDir);
+            }
             string wvData = Path.Combine(_runtime.Paths.DataDirectory, "webview2");
             Directory.CreateDirectory(wvData);
             var env = await CoreWebView2Environment.CreateAsync(null, wvData);

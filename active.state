@@ -4,20 +4,32 @@
   "name": "Mother",
   "projectGroup": "Personal",
   "relativePath": "Personal/Mother",
-  "containerTier": "Tier A (5-Folder)",
+  "containerTier": "Tier A (4-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "SIS",
-  "version": "0.2.0-hf.1",
-  "activeMilestone": "0.2.1",
+  "version": "0.3.0",
+  "activeMilestone": "0.4.0",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-12",
-  "lastVersionDate": "2026-11-15",
+  "lastVersionDate": "2026-11-19",
   "productionSubpath": "StreamItAll\\Mother\\Mother",
   "supersededBy": null,
   "tasklistDetailLevel": 3,
-  "openTaskCount": 0,
-  "completedTaskCount": 9,
+  "openTaskCount": 19,
+  "completedTaskCount": 12,
   "openReportCount": 0,
+  "isPublicRepo": false,
+  "requireHumanReviewBeforePush": true,
+  "discordPost": {
+    "isEnabled": true,
+    "serverName": null,
+    "guildId": null,
+    "channelName": null,
+    "channelId": null,
+    "deliveryMethod": "webhook",
+    "secretEnvKey": "DISCORD_WEBHOOK_FOUNDATION",
+    "autoPostOnRelease": true
+  },
   "gates": {
     "isGate0ScopePassed": true,
     "isGate1PlanPassed": true,
@@ -25,6 +37,6 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "Mother v0.2.0-hf.1 hotfix: synced Foundation v0.4.1-hf.1, retired legacy isolated test harness, and standardized Tier A 5-folder layout.",
-  "updatedAtUtc": "2026-11-16T01:05:00.000Z"
+  "notes": "Mother v0.3.0 Public Beta baseline (Tier A 4-folder layout, Foundation v0.5.1). Universal pluggable core with 0-app empty state, Doctor pass, 503 NO_HTTP_ENDPOINT guard, ISO/IEC 18004 QR SVG, settings v2 migration, 3-mode sandbox containment (ExitCode 3), Debug-only automation (ExitCode 2 in Release), self-contained win-x64 Setup + Portable ZIP, and clean-room docs + SECURITY.md + CONTRIBUTING.md synced. Next milestone: v0.4.0 Zero-Update App Onboarding; awaiting T7 history scrub and human review gate prior to public beta push.",
+  "updatedAtUtc": "2026-11-19T09:44:00Z"
 }
