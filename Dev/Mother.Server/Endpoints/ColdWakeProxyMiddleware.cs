@@ -90,6 +90,20 @@ public static class ColdWakeProxyMiddleware
         }
 
         var snapshot = runtime.Supervisor.GetSnapshot(appId);
+        int port = snapshot?.EffectivePort ?? runtime.Manifests.GetEffectivePort(entry);
+        if (port <= 0)
+        {
+            string msg = $"Sister app '{entry.Name}' has no HTTP UI/API endpoint configured (effectivePort={port}).";
+            ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                errorCode = "NO_HTTP_ENDPOINT",
+                message = msg,
+                errorMessage = msg
+            }, ctx.RequestAborted);
+            return;
+        }
+
         bool isOnline = snapshot?.IsOnline == true;
 
         if (!isOnline)
@@ -147,7 +161,6 @@ public static class ColdWakeProxyMiddleware
         }
 
         runtime.Supervisor.TouchActivity(entry.AppId);
-        int port = runtime.Manifests.GetEffectivePort(entry);
         string subPath = string.IsNullOrEmpty(catchAll) ? string.Empty : catchAll.TrimStart('/');
         string upstreamPath = isApiRoute
             ? (string.IsNullOrEmpty(subPath) ? "/api/v1" : $"/api/v1/{subPath}")

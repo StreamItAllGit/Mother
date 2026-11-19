@@ -41,6 +41,33 @@ export function renderFleetView(container, state, refreshAll) {
     await refreshAll();
   });
 
+  if (apps.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'panel-card';
+    empty.id = 'fleet-empty-state';
+    empty.innerHTML = `
+      <span class="badge-info">No Sister Apps Registered</span>
+      <h2 style="margin:10px 0 6px;font-size:18px">No applications discovered yet</h2>
+      <p class="kpi-label" style="margin:0 0 12px;max-width:68ch;line-height:1.5">
+        Mother builds its supervised fleet dynamically from discovered app manifests. Add a manifest or install a suite app to begin supervising it:
+      </p>
+      <ul style="margin:0 0 14px;padding-left:20px;line-height:1.6;color:var(--text-secondary)">
+        <li>Place a <code>suite.manifest.json</code> (or <code>&lt;appId&gt;.json</code>) under <code>data/manifests/</code> and click <strong>Reload Manifests</strong>.</li>
+        <li>Or install a suite application via <code>Mother.Installer</code> or launch Mother with <code>--programs-dir &lt;path&gt;</code>.</li>
+      </ul>
+      <div class="row-gap">
+        <button type="button" id="btn-empty-reload-manifests" class="btn-primary">Reload Manifests</button>
+      </div>
+    `;
+    empty.querySelector('#btn-empty-reload-manifests')?.addEventListener('click', async () => {
+      await apiPost('/api/v1/suite/apps/reload');
+      announceStatus('Reloaded sister application manifests.');
+      await refreshAll();
+    });
+    container.appendChild(empty);
+    return;
+  }
+
   renderSortableTable(container, {
     tableId: 'fleet-apps-table',
     caption: 'Supervised Sister Applications',
@@ -51,7 +78,7 @@ export function renderFleetView(container, state, refreshAll) {
       { key: 'name', label: 'Application', render: (r) => `<strong>${escapeHtml(r.name)}</strong><div class="kpi-label">${escapeHtml(r.appId)}</div>` },
       { key: 'state', label: 'State', render: (r) => `<span class="${r.isOnline ? 'badge-ok' : 'badge-info'}">${escapeHtml(String(r.state || '').toUpperCase())}</span>` },
       { key: 'residency', label: 'Residency', render: (r) => `<span class="badge-info">${escapeHtml(String(r.residency || '').toUpperCase())}</span>` },
-      { key: 'effectivePort', label: 'Port', numeric: true },
+      { key: 'effectivePort', label: 'Port', numeric: true, render: (r) => (r.effectivePort > 0 ? escapeHtml(r.effectivePort) : '—') },
       { key: 'activeJobs', label: 'Active Jobs', numeric: true },
       { key: 'version', label: 'Version', numeric: true },
     ],

@@ -18,7 +18,19 @@ export async function saveCurrentSettings(refreshAll) {
 export function renderSettingsView(container, state, refreshAll) {
   container.innerHTML = '';
   const current = state.settingsBundle?.settings || {};
-  draftSettings = structuredClone(current);
+  draftSettings = {
+    ...structuredClone(current),
+    schemaVersion: Math.max(2, Number(current.schemaVersion) || 2),
+    useGlobalFormatRules: current.useGlobalFormatRules ?? true,
+    shouldAllowTailscaleBind: Boolean(current.shouldAllowTailscaleBind),
+    idleTimeoutMinutes: current.idleTimeoutMinutes ?? 15,
+    healthPollIntervalMs: current.healthPollIntervalMs ?? 5000,
+    shouldInhibitSleepDuringActiveLock: current.shouldInhibitSleepDuringActiveLock ?? true,
+    postRunPowerPolicy: current.postRunPowerPolicy || 'StayAwake',
+    shouldAutoAlignSisterApps: Boolean(current.shouldAutoAlignSisterApps),
+    shouldShowDesktopToasts: current.shouldShowDesktopToasts ?? true,
+    shouldSendDiscordWebhooks: Boolean(current.shouldSendDiscordWebhooks),
+  };
   const snapshots = state.settingsBundle?.snapshots || [];
 
   const header = document.createElement('div');
@@ -26,7 +38,7 @@ export function renderSettingsView(container, state, refreshAll) {
   header.innerHTML = `
     <div>
       <h1 style="margin:0;font-size:20px">Suite Settings &amp; Snapshot Rollback</h1>
-      <span class="kpi-label">Schema v${escapeHtml(current.schemaVersion ?? 1)} · Press Ctrl+S to save</span>
+      <span class="kpi-label">Schema v${escapeHtml(draftSettings.schemaVersion)} · Press Ctrl+S to save</span>
     </div>
     <div class="row-gap">
       <button type="button" id="btn-export-settings" class="btn-secondary">Export Settings JSON</button>
@@ -41,8 +53,11 @@ export function renderSettingsView(container, state, refreshAll) {
     <div class="panel-card">
       <label class="row-gap"><input type="checkbox" id="set-global-format" ${draftSettings.useGlobalFormatRules ? 'checked' : ''} /><strong>Use global format rules</strong></label>
       <p class="kpi-label">Enforce suite-wide ISO-8601 UTC millisecond and tabular numeric standards.</p>
-      <label class="row-gap"><input type="checkbox" id="set-tailscale" ${draftSettings.allowTailscaleBind ? 'checked' : ''} /><strong>Allow Tailscale bind (100.64.0.0/10)</strong></label>
-      <label class="row-gap"><input type="checkbox" id="set-auto-align" ${draftSettings.autoAlignWithSisterApps ? 'checked' : ''} /><strong>Auto-align sister app schedules</strong></label>
+      <label class="row-gap"><input type="checkbox" id="set-tailscale" ${draftSettings.shouldAllowTailscaleBind ? 'checked' : ''} /><strong>Allow Tailscale bind (100.64.0.0/10)</strong></label>
+      <label class="row-gap" style="margin-top:8px"><input type="checkbox" id="set-auto-align" ${draftSettings.shouldAutoAlignSisterApps ? 'checked' : ''} /><strong>Auto-align sister app schedules</strong></label>
+      <label class="row-gap" style="margin-top:8px"><input type="checkbox" id="set-inhibit-sleep" ${draftSettings.shouldInhibitSleepDuringActiveLock ? 'checked' : ''} /><strong>Inhibit sleep during active lock</strong></label>
+      <label class="row-gap" style="margin-top:8px"><input type="checkbox" id="set-desktop-toasts" ${draftSettings.shouldShowDesktopToasts ? 'checked' : ''} /><strong>Show desktop toast notifications</strong></label>
+      <label class="row-gap" style="margin-top:8px"><input type="checkbox" id="set-discord-webhooks" ${draftSettings.shouldSendDiscordWebhooks ? 'checked' : ''} /><strong>Send Discord webhook alerts</strong></label>
     </div>
     <div class="panel-card">
       <div class="kpi-label">Post-Run Power Policy</div>
@@ -50,18 +65,27 @@ export function renderSettingsView(container, state, refreshAll) {
         ${['StayAwake', 'Sleep', 'Shutdown'].map((p) => `<button type="button" class="segment-btn" data-policy="${p}" aria-pressed="${draftSettings.postRunPowerPolicy === p}">${p}</button>`).join('')}
       </div>
       <div class="row-gap" style="margin-top:12px">
-        <label style="flex:1">Cold-Wake Idle (min)<input type="number" id="set-idle-min" class="mother-input" min="1" max="240" value="${escapeHtml(draftSettings.coldWakeIdleMinutes ?? 15)}" /></label>
-        <label style="flex:1">Poll Interval (ms)<input type="number" id="set-poll-ms" class="mother-input" min="1000" max="60000" step="500" value="${escapeHtml(draftSettings.healthPollIntervalMs ?? 5000)}" /></label>
+        <label style="flex:1">Idle Timeout (min)<input type="number" id="set-idle-min" class="mother-input" min="1" max="1440" value="${escapeHtml(draftSettings.idleTimeoutMinutes)}" /></label>
+        <label style="flex:1">Poll Interval (ms)<input type="number" id="set-poll-ms" class="mother-input" min="1000" max="60000" step="500" value="${escapeHtml(draftSettings.healthPollIntervalMs)}" /></label>
       </div>
     </div>
   `;
   container.appendChild(grid);
 
   grid.querySelector('#set-global-format')?.addEventListener('change', (e) => { draftSettings.useGlobalFormatRules = e.target.checked; });
-  grid.querySelector('#set-tailscale')?.addEventListener('change', (e) => { draftSettings.allowTailscaleBind = e.target.checked; });
-  grid.querySelector('#set-auto-align')?.addEventListener('change', (e) => { draftSettings.autoAlignWithSisterApps = e.target.checked; });
-  grid.querySelector('#set-idle-min')?.addEventListener('input', (e) => { draftSettings.coldWakeIdleMinutes = Number(e.target.value) || 15; });
-  grid.querySelector('#set-poll-ms')?.addEventListener('input', (e) => { draftSettings.healthPollIntervalMs = Number(e.target.value) || 5000; });
+  grid.querySelector('#set-tailscale')?.addEventListener('change', (e) => { draftSettings.shouldAllowTailscaleBind = e.target.checked; });
+  grid.querySelector('#set-auto-align')?.addEventListener('change', (e) => { draftSettings.shouldAutoAlignSisterApps = e.target.checked; });
+  grid.querySelector('#set-inhibit-sleep')?.addEventListener('change', (e) => { draftSettings.shouldInhibitSleepDuringActiveLock = e.target.checked; });
+  grid.querySelector('#set-desktop-toasts')?.addEventListener('change', (e) => { draftSettings.shouldShowDesktopToasts = e.target.checked; });
+  grid.querySelector('#set-discord-webhooks')?.addEventListener('change', (e) => { draftSettings.shouldSendDiscordWebhooks = e.target.checked; });
+  grid.querySelector('#set-idle-min')?.addEventListener('input', (e) => {
+    const n = Number(e.target.value);
+    draftSettings.idleTimeoutMinutes = Number.isFinite(n) && n >= 1 ? Math.min(1440, Math.round(n)) : 15;
+  });
+  grid.querySelector('#set-poll-ms')?.addEventListener('input', (e) => {
+    const n = Number(e.target.value);
+    draftSettings.healthPollIntervalMs = Number.isFinite(n) && n >= 1000 ? Math.min(60000, Math.round(n)) : 5000;
+  });
   grid.querySelectorAll('[data-policy]').forEach((btn) => {
     btn.addEventListener('click', () => {
       draftSettings.postRunPowerPolicy = btn.dataset.policy;

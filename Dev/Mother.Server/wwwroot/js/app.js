@@ -1,9 +1,8 @@
 // @module: Mother.Server.Web.App
-// @purpose: Main frontend shell orchestrating Outer Tabs (Alt+1..7), Sidebar (Ctrl+B), Mobile Nav, Dialogs, Tooltips, Docked Terminal, and SSE updates.
-// @depends-on: /js/api/contracts.js, /js/api/client.js, /js/components/*, /js/views/*, /vendor/foundation/foundation-terminal.js
+// @purpose: Main frontend shell orchestrating Outer Tabs (Alt+1..9), Sidebar (Ctrl+B), Mobile Nav, Dialogs, Tooltips, Docked Terminal, and SSE updates.
+// @depends-on: /js/api/client.js, /js/components/*, /js/views/*, /vendor/foundation/foundation-terminal.js
 // @exports: Mother WebUI runtime
 
-import { DEFAULT_SISTER_TABS } from './api/contracts.js';
 import { announceStatus, apiGet, apiPost, escapeHtml, subscribeSuiteEvents } from './api/client.js';
 import { initDialogs, openHotkeyDialog, openOmniDialog } from './components/command-palette.js';
 import { closeDetailDrawer, initDrawerControls, openQrDrawer } from './components/drawer.js';
@@ -28,17 +27,22 @@ const appState = {
 
 let terminalApi = null;
 
+function getOuterTabs() {
+  return [
+    { appId: 'mother', name: 'Mother', isOnline: true },
+    ...appState.apps.map((app) => ({
+      appId: app.appId,
+      name: app.name || app.appId,
+      isOnline: Boolean(app.isOnline),
+    })),
+  ];
+}
+
 function renderTabStrip() {
   const strip = document.getElementById('app-tab-strip');
   if (!strip) return;
   strip.innerHTML = '';
-  const tabs = [
-    { appId: 'mother', name: 'Mother', isOnline: true },
-    ...DEFAULT_SISTER_TABS.slice(1).map((def) => {
-      const live = appState.apps.find((a) => a.appId === def.appId);
-      return { appId: def.appId, name: live?.name || def.name, isOnline: Boolean(live?.isOnline) };
-    }),
-  ];
+  const tabs = getOuterTabs();
 
   tabs.forEach((tab, idx) => {
     const btn = document.createElement('button');
@@ -48,7 +52,7 @@ function renderTabStrip() {
     btn.setAttribute('aria-selected', String(appState.activeTabId === tab.appId));
     btn.innerHTML = `<span class="tab-dot ${tab.isOnline ? 'is-online' : ''}" aria-hidden="true"></span><span>${escapeHtml(tab.name)}</span>`;
     btn.addEventListener('click', () => switchOuterTab(tab.appId));
-    btn.dataset.hotkeyIndex = String(idx + 1);
+    if (idx < 9) btn.dataset.hotkeyIndex = String(idx + 1);
     strip.appendChild(btn);
   });
 }
@@ -122,7 +126,7 @@ async function refreshAll() {
     });
 
     const ver = document.getElementById('suite-version');
-    if (ver) ver.textContent = `v${health.version || '0.1.0'}`;
+    if (ver) ver.textContent = `v${health.version || '0.3.0'}`;
     const modeChip = document.getElementById('chip-mode');
     if (modeChip) modeChip.textContent = health.isolatedMode ? 'ISOLATED' : 'PROD';
     const pwrChip = document.getElementById('chip-power');
@@ -133,6 +137,11 @@ async function refreshAll() {
     }
     const cBadge = document.getElementById('badge-conflicts');
     if (cBadge) cBadge.textContent = String((coexistence.conflicts || []).length);
+
+    if (appState.activeTabId !== 'mother' && !appState.apps.some((a) => a.appId === appState.activeTabId)) {
+      switchOuterTab('mother');
+      return;
+    }
 
     renderTabStrip();
     if (appState.activeTabId === 'mother') renderActiveRoute();
@@ -219,9 +228,9 @@ async function boot() {
     if (e.ctrlKey && e.key.toLowerCase() === 'b') { e.preventDefault(); toggleSidebar(); }
     else if (e.ctrlKey && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); }
     else if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); if (appState.route === 'settings') saveCurrentSettings(refreshAll); }
-    else if (e.altKey && e.key >= '1' && e.key <= '7') {
+    else if (e.altKey && e.key >= '1' && e.key <= '9') {
       e.preventDefault();
-      const target = DEFAULT_SISTER_TABS[Number(e.key) - 1];
+      const target = getOuterTabs()[Number(e.key) - 1];
       if (target) switchOuterTab(target.appId);
     } else if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
       e.preventDefault();
@@ -257,8 +266,9 @@ async function boot() {
 
   await refreshAll();
   const requestedTab = new URLSearchParams(window.location.search).get('tab');
-  if (requestedTab && DEFAULT_SISTER_TABS.some((t) => t.appId === requestedTab)) {
-    switchOuterTab(requestedTab);
+  if (requestedTab) {
+    const matched = getOuterTabs().find((t) => t.appId.toLowerCase() === requestedTab.trim().toLowerCase());
+    if (matched) switchOuterTab(matched.appId);
   }
 }
 
