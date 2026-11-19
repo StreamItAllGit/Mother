@@ -31,7 +31,7 @@ public sealed class FleetDoctorService
         _paths = paths;
         _db = db;
         _diag = diag;
-        _version = version;
+        _version = string.IsNullOrWhiteSpace(version) ? MotherBuildConstants.AppVersionFallback : version;
     }
 
     public DoctorReportDto RunChecks(
@@ -55,14 +55,18 @@ public sealed class FleetDoctorService
             "foundation-sdk",
             "Foundation SDK Pin",
             "pass",
-            File.Exists(sdkManifest) ? "sdk-manifest.json verified alongside runtime." : "Foundation.Core v0.4.1-hf.1 loaded.",
+            File.Exists(sdkManifest)
+                ? "sdk-manifest.json verified alongside runtime."
+                : $"Foundation.Core v{MotherBuildConstants.SdkVersion} loaded.",
             false));
 
         checks.Add(new DoctorCheckDto(
             "manifests-discovered",
             "Sister-App Manifest Registry",
-            manifests.Count > 0 ? "pass" : "warn",
-            $"{manifests.Count} sister-app manifest(s) loaded from '{_paths.ManifestsDirectory}' / '{_paths.ProgramsRoot}'.",
+            "pass",
+            manifests.Count > 0
+                ? $"{manifests.Count} sister-app manifest(s) loaded from '{_paths.ManifestsDirectory}' / '{_paths.ProgramsRoot}'."
+                : $"0 sister-app manifests registered yet (add suite.manifest.json under '{_paths.ManifestsDirectory}' or '{_paths.ProgramsRoot}').",
             false));
 
         int staleLocks = locks.Count(l => l.Status == "stale");
@@ -73,13 +77,13 @@ public sealed class FleetDoctorService
             staleLocks == 0 ? "Zero stale locks detected." : $"{staleLocks} stale .hklock sentinel(s) eligible for purge.",
             staleLocks > 0));
 
-        bool simulatedWatchdog = _paths.IsIsolatedOverride || _paths.Options.DryRun;
+        bool simulatedWatchdog = _paths.ShouldSuppressLiveHostMutations || _paths.Options.DryRun;
         checks.Add(new DoctorCheckDto(
             "watchdog-task",
             "Master Watchdog (\\Mother_Watchdog)",
             watchdogRegistered || simulatedWatchdog ? "pass" : "warn",
             simulatedWatchdog
-                ? "Simulated in isolated/dry-run mode (host Task Scheduler untouched)."
+                ? "Simulated in isolated/sandbox/dry-run mode (host Task Scheduler untouched)."
                 : (watchdogRegistered ? @"\Mother_Watchdog registered." : @"\Mother_Watchdog not registered yet."),
             !watchdogRegistered && !simulatedWatchdog));
 
@@ -147,7 +151,17 @@ public sealed class FleetDoctorService
         }
         finally
         {
-            try { Directory.Delete(tempDir, recursive: true); } catch { }
+            if (Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, recursive: true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    _diag.Log("WARN", "mother", "Doctor", $"Diagnostic temp cleanup skipped for '{tempDir}': {ex.Message}");
+                }
+            }
         }
     }
 }

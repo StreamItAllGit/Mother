@@ -35,7 +35,7 @@ public sealed class FleetPowerCoordinator
     private DateTime? _countdownStartedUtc;
     private int _secondsRemaining;
 
-    public bool IsSimulated => _paths.IsIsolatedOverride || _paths.Options.DryRun;
+    public bool IsSimulated => _paths.ShouldSuppressLiveHostMutations || _paths.Options.DryRun;
     public int SimulatedPowerExecutions { get; private set; }
     public event Action<PowerStatusDto>? CountdownTicked;
 
@@ -200,7 +200,7 @@ public sealed class FleetPowerCoordinator
         if (IsSimulated || !OperatingSystem.IsWindows())
         {
             SimulatedPowerExecutions++;
-            _diag.Log("INFO", "mother", "Power", $"[SIMULATED] Executed post-run power transition '{action}' (hard-disabled in isolated/--dry-run mode).");
+            _diag.Log("INFO", "mother", "Power", $"[SIMULATED] Executed post-run power transition '{action}' (hard-disabled in isolated/sandbox/--dry-run mode).");
             return;
         }
 

@@ -1,6 +1,6 @@
 // @module: Mother.Core.Features.Supervision.WorkerLaunchCommandBuilder
-// @purpose: Resolves supervised child executables, WorkerArgs/commands.startDaemon arguments, isolated-root WorkingDirectory, and Mother gateway env vars.
-// @depends-on: System, System.Collections.Generic, System.Diagnostics, System.IO, System.Linq, System.Text, Mother.Core.Configuration, Mother.Core.Contracts
+// @purpose: Resolves supervised child executables, WorkerArgs/commands.startDaemon arguments, isolated/sandbox-contained WorkingDirectory, and Mother gateway env vars.
+// @depends-on: System, System.Collections.Generic, System.Diagnostics, System.IO, System.Linq, System.Text, Foundation.Core, Mother.Core.Configuration, Mother.Core.Contracts
 // @exports: WorkerLaunchCommandBuilder
 
 using System;
@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Foundation.Core;
 using Mother.Core.Configuration;
 using Mother.Core.Contracts;
 
@@ -35,21 +36,20 @@ public static class WorkerLaunchCommandBuilder
             return null;
         }
 
+        string? exeDir = Path.GetDirectoryName(resolvedExecutable);
         string? rawWorkDir = !string.IsNullOrWhiteSpace(manifest.InstallDir)
             ? manifest.InstallDir
-            : Path.GetDirectoryName(resolvedExecutable);
+            : (!string.IsNullOrWhiteSpace(exeDir) ? exeDir : null);
 
         string workingDir = !string.IsNullOrWhiteSpace(rawWorkDir)
-            ? paths.AssertContainedIfIsolated(rawWorkDir)
+            ? paths.AssertContainedIfIsolatedOrSandboxed(rawWorkDir)
             : paths.DataDirectory;
 
         if (!Directory.Exists(workingDir))
         {
-            workingDir = Path.GetDirectoryName(resolvedExecutable) ?? paths.DataDirectory;
-            if (paths.IsIsolatedOverride)
-            {
-                workingDir = paths.AssertContainedIfIsolated(workingDir);
-            }
+            workingDir = !string.IsNullOrWhiteSpace(exeDir)
+                ? paths.AssertContainedIfIsolatedOrSandboxed(exeDir)
+                : paths.DataDirectory;
         }
 
         string fileName = resolvedExecutable;
@@ -85,6 +85,10 @@ public static class WorkerLaunchCommandBuilder
         psi.Environment["MANAGED_BY_SUITE"] = "1";
         psi.Environment["MOTHER_SUPERVISED"] = "1";
         psi.Environment["MOTHER_GATEWAY_URL"] = $"http://127.0.0.1:{motherPort}";
+        if (paths.IsSandboxActive && !string.IsNullOrWhiteSpace(paths.Sandbox.SandboxRoot))
+        {
+            psi.Environment[SandboxEnvironmentSeam.EnvSandboxRoot] = paths.Sandbox.SandboxRoot;
+        }
 
         unavailableReason = string.Empty;
         return psi;
@@ -139,10 +143,19 @@ public static class WorkerLaunchCommandBuilder
         }
 
         string head = cmdTokens[0];
-        string candidate = CombineAndAssertIfRootedOrRelative(head, manifest.InstallDir, paths);
-        string resolvedHead = File.Exists(candidate)
-            ? candidate
-            : (IsBareCommandToken(head) ? head : string.Empty);
+        string resolvedHead;
+        if (string.IsNullOrWhiteSpace(manifest.InstallDir) && IsBareCommandToken(head))
+        {
+            string inDataDir = paths.AssertContainedIfIsolatedOrSandboxed(Path.Combine(paths.DataDirectory, head));
+            resolvedHead = File.Exists(inDataDir) ? inDataDir : head;
+        }
+        else
+        {
+            string candidate = CombineAndAssertIfRootedOrRelative(head, manifest.InstallDir, paths);
+            resolvedHead = File.Exists(candidate)
+                ? candidate
+                : (IsBareCommandToken(head) ? head : string.Empty);
+        }
 
         if (string.IsNullOrWhiteSpace(resolvedHead))
         {
@@ -163,7 +176,7 @@ public static class WorkerLaunchCommandBuilder
         string combined = Path.IsPathRooted(trimmed) || string.IsNullOrWhiteSpace(installDir)
             ? trimmed
             : Path.Combine(installDir, trimmed);
-        return paths.IsIsolatedOverride ? paths.AssertContainedIfIsolated(combined) : Path.GetFullPath(combined);
+        return paths.AssertContainedIfIsolatedOrSandboxed(combined);
     }
 
     private static bool IsBareCommandToken(string token) =>

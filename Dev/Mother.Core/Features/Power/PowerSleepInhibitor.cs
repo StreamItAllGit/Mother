@@ -22,7 +22,7 @@ public sealed class PowerSleepInhibitor : IDisposable
     private readonly MotherDiagnostics _diag;
 
     public bool IsInhibiting { get; private set; }
-    public bool IsSimulated => _paths.IsIsolatedOverride || _paths.Options.DryRun;
+    public bool IsSimulated => _paths.ShouldSuppressLiveHostMutations || _paths.Options.DryRun;
 
     public PowerSleepInhibitor(PathResolver paths, MotherDiagnostics diag)
     {

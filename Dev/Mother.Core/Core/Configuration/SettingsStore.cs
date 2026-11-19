@@ -1,12 +1,14 @@
 // @module: Mother.Core.Configuration.SettingsStore
-// @purpose: Atomic settings store wrapping GranularSettingsManager with 20-snapshot history, rollback, and JSON export (SIS-03).
-// @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Text, System.Text.Json, Foundation.Core
+// @purpose: Atomic settings store wrapping GranularSettingsManager with v1->v2 migration, 20-snapshot history, rollback, and JSON export (SIS-03).
+// @depends-on: System, System.Collections.Generic, System.Diagnostics, System.IO, System.Linq, System.Security, System.Text, System.Text.Json, Foundation.Core
 // @exports: SettingsStore
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -38,12 +40,18 @@ public sealed class SettingsStore
         ArgumentNullException.ThrowIfNull(paths);
         _manager = new GranularSettingsManager(paths.DataDirectory, GranularSettingsManager.DefaultMaxHistorySnapshots);
         _settingsFileTarget = paths.ConfigFilePath;
+        SettingsMigrationResult migration = SettingsMigrationService.MigrateBeforeLoad(paths, _manager, JsonOptions);
         SettingsLoadOutcome<MotherSettings> outcome = _manager.LoadOrSelfHeal(
             _settingsFileTarget,
             () => new MotherSettings().Normalized(),
             JsonOptions);
-        _current = outcome.Value.Normalized();
-        LastDiagnosticWarning = outcome.DiagnosticWarning;
+        _current = SettingsMigrationService.NormalizeAfterLoad(
+            _settingsFileTarget,
+            _manager,
+            JsonOptions,
+            outcome.Value,
+            outcome.HealedFromBackup);
+        LastDiagnosticWarning = CombineWarnings(migration.DiagnosticWarning, outcome.DiagnosticWarning);
     }
 
     public MotherSettings GetCurrent()
@@ -58,7 +66,7 @@ public sealed class SettingsStore
     public MotherSettings Save(MotherSettings updated)
     {
         ArgumentNullException.ThrowIfNull(updated);
-        MotherSettings normalized = updated.Normalized();
+        MotherSettings normalized = SettingsMigrationService.StripLegacyExtensionKeys(updated);
         lock (_sync)
         {
             _manager.SaveAtomically(_settingsFileTarget, normalized, JsonOptions, recordSnapshot: true);
@@ -70,9 +78,7 @@ public sealed class SettingsStore
 
     public MotherSettings ApplyAndSaveJson(JsonElement rawPayload)
     {
-        string json = rawPayload.GetRawText();
-        MotherSettings updated = JsonSerializer.Deserialize<MotherSettings>(json, JsonOptions)?.Normalized()
-            ?? throw new InvalidDataException("Settings payload could not be parsed.");
+        MotherSettings updated = SettingsMigrationService.ParseAndNormalize(rawPayload, JsonOptions, out _);
         return Save(updated);
     }
 
@@ -92,9 +98,10 @@ public sealed class SettingsStore
                     CreatedAtUtc: info.LastWriteTimeUtc.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
                     FileSizeBytes: info.Length));
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
             {
-                /* ignore transient file read issues */
+                // Transient snapshot metadata read issues should not block listing remaining snapshots.
+                Trace.TraceWarning($"Skipped unreadable settings snapshot '{path}': {ex.Message}");
             }
         }
         return results;
@@ -114,9 +121,7 @@ public sealed class SettingsStore
         }
 
         string raw = File.ReadAllText(fullPath, Encoding.UTF8);
-        MotherSettings restored = JsonSerializer.Deserialize<MotherSettings>(raw, JsonOptions)?.Normalized()
-            ?? throw new InvalidDataException($"Snapshot '{safeFileName}' could not be parsed.");
-
+        MotherSettings restored = SettingsMigrationService.ParseAndNormalize(raw, JsonOptions, out _);
         return Save(restored);
     }
 
@@ -126,4 +131,11 @@ public sealed class SettingsStore
             AppId: "mother",
             Version: version,
             Settings: GetCurrent());
+
+    private static string? CombineWarnings(string? first, string? second)
+    {
+        if (string.IsNullOrWhiteSpace(first)) return second;
+        if (string.IsNullOrWhiteSpace(second)) return first;
+        return $"{first} {second}";
+    }
 }

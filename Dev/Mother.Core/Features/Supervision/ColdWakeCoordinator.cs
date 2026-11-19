@@ -49,9 +49,14 @@ public sealed class ColdWakeCoordinator
 
         bool started = _supervisor.TryStartProcess(entry.AppId, out string startMsg);
         int port = snap?.EffectivePort ?? entry.InternalPort;
-        if (!started && port <= 0)
+        if (port <= 0)
         {
-            return new WakeOutcomeDto(entry.AppId, false, null, sw.ElapsedMilliseconds, startMsg);
+            if (!started)
+            {
+                return new WakeOutcomeDto(entry.AppId, false, null, sw.ElapsedMilliseconds, startMsg);
+            }
+            SisterAppRuntimeDto? launched = _supervisor.GetSnapshot(entry.AppId);
+            return new WakeOutcomeDto(entry.AppId, true, launched?.Pid, sw.ElapsedMilliseconds, $"{entry.Name} started (no HTTP health port configured).");
         }
 
         string healthUrl = $"http://127.0.0.1:{port}{entry.HealthEndpoint}";
@@ -69,9 +74,17 @@ public sealed class ColdWakeCoordinator
                     return new WakeOutcomeDto(entry.AppId, true, ready?.Pid, sw.ElapsedMilliseconds, $"{entry.Name} ready.");
                 }
             }
-            catch
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                /* child still booting or not staged */
+                break;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
+            {
+                // Child worker may still be binding its HTTP health endpoint during boot.
+                if (!started)
+                {
+                    _diag.Log("WARN", entry.AppId, "ColdWake", $"Health probe failed for '{healthUrl}': {ex.Message}");
+                }
             }
             if (!started) break;
             await Task.Delay(250, ct).ConfigureAwait(false);

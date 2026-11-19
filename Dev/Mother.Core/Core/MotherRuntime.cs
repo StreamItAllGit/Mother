@@ -103,7 +103,7 @@ public sealed class MotherRuntime : IDisposable
             Status: "ok",
             SuiteId: "mother",
             Version: Version,
-            SdkVersion: "0.4.1-hf.1",
+            SdkVersion: MotherBuildConstants.SdkVersion,
             Pid: Environment.ProcessId,
             UptimeSeconds: Math.Max(0, (long)(DateTime.UtcNow - _startedUtc).TotalSeconds),
             IsolatedMode: Paths.IsIsolatedOverride,
@@ -175,9 +175,43 @@ public sealed class MotherRuntime : IDisposable
         if (_disposed) return;
         _disposed = true;
         _bgCts.Cancel();
-        try { _bgTask?.Wait(1000); } catch { }
+        try
+        {
+            _bgTask?.Wait(1000);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected cancellation when stopping background supervision loop.
+        }
+        catch (AggregateException ex)
+        {
+            foreach (Exception inner in ex.Flatten().InnerExceptions)
+            {
+                if (inner is not OperationCanceledException)
+                {
+                    Diagnostics.Log("WARN", "mother", "Shutdown", $"Background supervision loop ended with error: {inner.Message}");
+                }
+            }
+        }
         _bgCts.Dispose();
-        try { Supervisor.StopAllAsync().Wait(1500); } catch { }
+        try
+        {
+            Supervisor.StopAllAsync().Wait(1500);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected if child shutdown drain was cancelled during runtime dispose.
+        }
+        catch (AggregateException ex)
+        {
+            foreach (Exception inner in ex.Flatten().InnerExceptions)
+            {
+                if (inner is not OperationCanceledException)
+                {
+                    Diagnostics.Log("WARN", "mother", "Shutdown", $"Child process drain warning during dispose: {inner.Message}");
+                }
+            }
+        }
         Supervisor.Dispose();
         SleepInhibitor.Dispose();
         Ipc?.Dispose();

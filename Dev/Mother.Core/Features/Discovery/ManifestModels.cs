@@ -1,30 +1,17 @@
 // @module: Mother.Core.Features.Discovery.ManifestModels
-// @purpose: Canonical sister-app port defaults and dual-schema (v1 snake_case + v2 camelCase) manifest normalizer.
-// @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Text.Json, Mother.Core.Contracts
-// @exports: CanonicalSisterDefaults, ManifestParser
+// @purpose: Dual-schema (v1 snake_case + v2 camelCase) sister-app manifest normalizer.
+// @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Text.Json, Mother.Core.Configuration, Mother.Core.Contracts
+// @exports: ManifestParser
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using Mother.Core.Configuration;
 using Mother.Core.Contracts;
 
 namespace Mother.Core.Features.Discovery;
-
-public static class CanonicalSisterDefaults
-{
-    public static readonly IReadOnlyDictionary<string, (string Name, int ProdPort, string Accent)> KnownApps =
-        new Dictionary<string, (string, int, string)>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["housekeeping"] = ("Housekeeping", 5178, "#f59e0b"),
-            ["shadowlibrary"] = ("ShadowLibrary", 5179, "#6366f1"),
-            ["redroom"] = ("Redroom", 5180, "#ef4444"),
-            ["greenroom"] = ("Greenroom", 8420, "#10b981"),
-            ["streamengine"] = ("StreamEngine", 8430, "#8b5cf6"),
-            ["legacy-sister-app"] = ("legacy-sister-app", 8460, "#06b6d4")
-        };
-}
 
 public static class ManifestParser
 {
@@ -48,15 +35,15 @@ public static class ManifestParser
             return null;
         }
 
-        CanonicalSisterDefaults.KnownApps.TryGetValue(appId, out var known);
         int schemaVer = FirstInt(root, "schemaVersion", "schema_version") ?? (root.TryGetProperty("app_id", out _) ? 1 : 2);
-        string name = FirstString(root, "name", "displayName", "display_name", "shortName") ?? known.Name ?? appId;
+        string name = FirstString(root, "name", "displayName", "display_name", "shortName") ?? appId;
         string version = FirstString(root, "version") ?? "0.1.0";
         string minSuite = FirstString(root, "minSuiteVersion", "min_suite_version") ?? "0.1.0";
-        string sdkVer = FirstString(root, "sdkVersion", "sdk_version") ?? "0.4.1-hf.1";
-        string accent = FirstString(root, "brandAccent", "brand_accent", "brand_color", "accentColor") ?? known.Accent ?? "#38bdf8";
+        string sdkVer = FirstString(root, "sdkVersion", "sdk_version") ?? MotherBuildConstants.SdkVersion;
+        string accent = FirstString(root, "brandAccent", "brand_accent", "brand_color", "accentColor") ?? "#38bdf8";
 
-        int internalPort = FirstInt(root, "internalPort", "internal_port", "port") ?? known.ProdPort;
+        int rawPort = FirstInt(root, "internalPort", "internal_port", "port") ?? 0;
+        int internalPort = rawPort is > 0 and <= 65535 ? rawPort : 0;
 
         string installDir = FirstString(root, "installDir", "install_dir") ?? Path.GetDirectoryName(filePath) ?? string.Empty;
         string executable = FirstString(root, "executable", "launcherExecutable", "executablePath") ?? string.Empty;

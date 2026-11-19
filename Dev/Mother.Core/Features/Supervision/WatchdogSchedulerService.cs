@@ -1,9 +1,10 @@
 // @module: Mother.Core.Features.Supervision.WatchdogSchedulerService
-// @purpose: Manages \Mother_Watchdog Windows Task Scheduler registration via ArgumentList; strictly simulated/no-op in isolated and --dry-run modes.
-// @depends-on: System, System.Diagnostics, System.IO, Mother.Core.Configuration, Mother.Core.Diagnostics
+// @purpose: Manages \Mother_Watchdog Windows Task Scheduler registration via ArgumentList; strictly simulated/no-op in isolated, sandbox, and --dry-run modes.
+// @depends-on: System, System.ComponentModel, System.Diagnostics, System.IO, Mother.Core.Configuration, Mother.Core.Diagnostics
 // @exports: WatchdogSchedulerService
 
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using Mother.Core.Configuration;
@@ -17,7 +18,7 @@ public sealed class WatchdogSchedulerService
     private readonly PathResolver _paths;
     private readonly MotherDiagnostics _diag;
 
-    public bool IsSimulated => _paths.IsIsolatedOverride || _paths.Options.DryRun;
+    public bool IsSimulated => _paths.ShouldSuppressLiveHostMutations || _paths.Options.DryRun;
     public bool SimulatedRegisteredState { get; private set; }
 
     public WatchdogSchedulerService(PathResolver paths, MotherDiagnostics diag)
@@ -47,8 +48,9 @@ public sealed class WatchdogSchedulerService
             p?.WaitForExit(3000);
             return p?.ExitCode == 0;
         }
-        catch
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
         {
+            _diag.Log("WARN", "mother", "Watchdog", $"Failed querying scheduled task {TaskName}: {ex.Message}");
             return false;
         }
     }
@@ -58,7 +60,7 @@ public sealed class WatchdogSchedulerService
         if (IsSimulated)
         {
             SimulatedRegisteredState = true;
-            message = $"[SIMULATED] {TaskName} registration skipped in isolated/dry-run mode.";
+            message = $"[SIMULATED] {TaskName} registration skipped in isolated/sandbox/dry-run mode.";
             _diag.Log("INFO", "mother", "Watchdog", message);
             return true;
         }

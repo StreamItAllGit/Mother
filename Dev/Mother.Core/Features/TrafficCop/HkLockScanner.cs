@@ -1,12 +1,14 @@
 // @module: Mother.Core.Features.TrafficCop.HkLockScanner
 // @purpose: Scans registered roots and data directories for .hklock files and validates live vs stale PIDs via PidSafeLockfile.
-// @depends-on: System, System.Collections.Generic, System.IO, System.Linq, Foundation.Core, Mother.Core.Contracts
+// @depends-on: System, System.Collections.Generic, System.Diagnostics, System.IO, System.Linq, System.Security, System.Text.Json, Foundation.Core, Mother.Core.Contracts
 // @exports: HkLockScanner
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security;
 using System.Text.Json;
 using Foundation.Core;
 using Mother.Core.Contracts;
@@ -33,8 +35,10 @@ public sealed class HkLockScanner
                     .Concat(Directory.EnumerateFiles(fullDir, ".*.hklock", SearchOption.TopDirectoryOnly))
                     .Distinct(StringComparer.OrdinalIgnoreCase);
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
             {
+                // Skip inaccessible directories cleanly without aborting remaining lock scans.
+                Trace.TraceWarning($"Skipped inaccessible .hklock scan directory '{fullDir}': {ex.Message}");
                 continue;
             }
 
@@ -113,8 +117,10 @@ public sealed class HkLockScanner
                 GetStr(root, "heartbeatAtUtc"),
                 GetStr(root, "expiresAtUtc"));
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
+            // Corrupt or locked lockfiles fall back to stale sentinel inspection.
+            Trace.TraceWarning($"Unable to read fallback .hklock JSON '{lockPath}': {ex.Message}");
             fields = null;
         }
     }
@@ -147,9 +153,10 @@ public sealed class HkLockScanner
                     purged.Add(snap.LockFilePath);
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                /* ignore locked file race */
+                // File may have been re-acquired or removed concurrently by a worker.
+                Trace.TraceWarning($"Skipped stale .hklock purge for '{snap.LockFilePath}': {ex.Message}");
             }
         }
         purgedPaths = purged;
