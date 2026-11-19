@@ -18,6 +18,7 @@ namespace Mother.Installer;
 
 public static class Program
 {
+    private const string FallbackVersion = "0.3.0";
     private static readonly ConcurrentDictionary<string, Assembly> LoadedFoundationAssemblies = new(StringComparer.OrdinalIgnoreCase);
 
     static Program()
@@ -26,18 +27,36 @@ public static class Program
         AppDomain.CurrentDomain.AssemblyResolve += (_, e) => LoadEmbeddedFoundationAssembly(new AssemblyName(e.Name).Name);
     }
 
+    private static bool IsEmbeddedFoundationAssembly(string? asmName) =>
+#if DEBUG || MOTHER_TEST_AUTOMATION
+        asmName is "Foundation.Core" or "Foundation.Installer" or "Foundation.Automation" or "Foundation.UI";
+#else
+        asmName is "Foundation.Core" or "Foundation.Installer";
+#endif
+
     private static Assembly? LoadEmbeddedFoundationAssembly(string? asmName)
     {
-        if (asmName is not ("Foundation.Core" or "Foundation.Installer")) return null;
-        return LoadedFoundationAssemblies.GetOrAdd(asmName, static key =>
+        if (!IsEmbeddedFoundationAssembly(asmName)) return null;
+        return LoadedFoundationAssemblies.GetOrAdd(asmName!, static key =>
         {
-            using Stream? gzStream = typeof(Program).Assembly.GetManifestResourceStream(key + ".dll.gz")
-                ?? throw new FileNotFoundException($"Missing embedded Foundation assembly resource '{key}.dll.gz'.");
-            using var decompressor = new GZipStream(gzStream, CompressionMode.Decompress);
-            using var ms = new MemoryStream();
-            decompressor.CopyTo(ms);
-            ms.Position = 0;
-            return AssemblyLoadContext.Default.LoadFromStream(ms);
+            using Stream? gzStream = typeof(Program).Assembly.GetManifestResourceStream(key + ".dll.gz");
+            if (gzStream is not null)
+            {
+                using var decompressor = new GZipStream(gzStream, CompressionMode.Decompress);
+                using var ms = new MemoryStream();
+                decompressor.CopyTo(ms);
+                ms.Position = 0;
+                return AssemblyLoadContext.Default.LoadFromStream(ms);
+            }
+
+#if DEBUG || MOTHER_TEST_AUTOMATION
+            string sidecarPath = Path.Combine(AppContext.BaseDirectory, key + ".dll");
+            if (File.Exists(sidecarPath))
+            {
+                return AssemblyLoadContext.Default.LoadFromAssemblyPath(sidecarPath);
+            }
+#endif
+            throw new FileNotFoundException($"Missing embedded Foundation assembly resource '{key}.dll.gz'.");
         });
     }
 
@@ -58,10 +77,13 @@ public static class Program
             || a.Equals("--verify", StringComparison.OrdinalIgnoreCase)
             || a.Equals("--dry-run", StringComparison.OrdinalIgnoreCase)
             || a.Equals("--version", StringComparison.OrdinalIgnoreCase)
-            || a.Equals("--help", StringComparison.OrdinalIgnoreCase)))
+            || a.Equals("-v", StringComparison.OrdinalIgnoreCase)
+            || a.Equals("--help", StringComparison.OrdinalIgnoreCase)
+            || a.Equals("-h", StringComparison.OrdinalIgnoreCase)
+            || a.Equals("/?", StringComparison.OrdinalIgnoreCase)))
             return;
 
-        string? installDir = TryReadFlagValue(args, "--install-dir");
+        string? installDir = TryReadFlagValue(args, "--install-dir") ?? TryReadFlagValue(args, "--target-dir");
         if (string.IsNullOrWhiteSpace(installDir) || !Directory.Exists(installDir)) return;
 
         string appDir = Path.Combine(installDir, "app");
@@ -98,10 +120,11 @@ public static class Program
     {
         string version = typeof(Program).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? "0.2.0-hf.1";
+            ?? FallbackVersion;
 
         int plusIdx = version.IndexOf('+');
         if (plusIdx > 0) version = version[..plusIdx];
+        if (string.IsNullOrWhiteSpace(version)) version = FallbackVersion;
 
         return MotherInstallerRunner.Run(args, version, typeof(Program).Assembly);
     }

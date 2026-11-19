@@ -1,21 +1,19 @@
 // @module: Mother.Installer.MotherInstallerRunner
-// @purpose: Wires Foundation.Installer InstallerEngineCore, Studio/Suite theme options, dark Wizard UI, --uninstall --dry-run guard, and opt-in legacy migration.
-// @depends-on: System, System.Collections.Generic, System.Diagnostics, System.IO, System.Linq, System.Reflection, System.Runtime.InteropServices, System.Threading, System.Threading.Tasks, System.Windows.Forms, Microsoft.Win32, Foundation.Core, Foundation.Installer
+// @purpose: Declarative manifest-driven Mother installer host migrating to StandardInstallerHost, InstallerEngine, IPlatformRegistry, and Debug/TestAutomation loopback wiring.
+// @depends-on: System, System.IO, System.Linq, System.Reflection, System.Threading, System.Windows.Forms, Foundation.Core, Foundation.Installer
 // @exports: MotherInstallerRunner
 
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+#if DEBUG || MOTHER_TEST_AUTOMATION
+using Foundation.Automation;
+#endif
 using Foundation.Core;
 using Foundation.Installer;
-using Microsoft.Win32;
 
 namespace Mother.Installer;
 
@@ -23,138 +21,114 @@ internal static class MotherInstallerRunner
 {
     private const string EmbeddedPayloadName = "Mother.Installer.Embedded.payload.zip";
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool AttachConsole(int dwProcessId);
-
     public static int Run(string[] args, string version, Assembly payloadAssembly)
     {
-        if (args.Length > 0 && OperatingSystem.IsWindows())
+        args ??= Array.Empty<string>();
+        if (!MotherInstallerIntegration.TryHandleAutomationArgs(args, out string[] hostArgs, out string[] automationArgs, out string? autoErr))
         {
-            try
-            {
-                if (!Console.IsOutputRedirected && !Console.IsErrorRedirected)
-                {
-                    AttachConsole(-1);
-                }
-            }
-            catch (Exception ex)
-            {
-                Trace.WriteLine($"Mother.Installer AttachConsole skipped: {ex.Message}");
-            }
+            Console.Error.WriteLine(autoErr ?? "Invalid automation CLI option.");
+            return 2;
+        }
+#if !(DEBUG || MOTHER_TEST_AUTOMATION)
+        _ = automationArgs;
+#endif
+
+        InstallerAppDescriptor effectiveDescriptor = ResolveEffectiveDescriptor(version, payloadAssembly);
+        InstallerCliOptions cli;
+        try
+        {
+            cli = InstallerEngine.ParseCliArgs(hostArgs, effectiveDescriptor);
+        }
+        catch (Exception ex) when (ex is ArgumentException or FormatException)
+        {
+            Console.Error.WriteLine($"Setup argument error: {ex.Message}");
+            return 2;
         }
 
-        if (HasFlag(args, "--version") || HasFlag(args, "-v"))
+#if DEBUG || MOTHER_TEST_AUTOMATION
+        if (!cli.ShowVersion &&
+            !cli.ShowHelp &&
+            !cli.Silent &&
+            !cli.DryRun &&
+            !cli.VerifyOnly &&
+            (!IsIsolatedTestEnv() || automationArgs.Length > 0) &&
+            OperatingSystem.IsWindows())
         {
-            Console.WriteLine(version);
-            return 0;
+            return RunInteractiveWizardWithAutomation(effectiveDescriptor, cli, automationArgs, payloadAssembly);
+        }
+#endif
+
+        InstallerHostRunResult hostResult = StandardInstallerHost.RunWithResult(effectiveDescriptor, hostArgs, payloadAssembly);
+        if (hostResult.ExitCode == 0 && !cli.ShowVersion && !cli.ShowHelp && !cli.VerifyOnly && !cli.DryRun)
+        {
+            ApplyPostHostIntegration(effectiveDescriptor, cli, hostResult);
         }
 
-        if (HasFlag(args, "--help") || HasFlag(args, "-h") || HasFlag(args, "/?"))
-        {
-            Console.WriteLine($"Mother Setup v{version}");
-            Console.WriteLine("Usage: Mother-Setup.exe [--install-dir <dir>] [--suite-dir <dir>] [--profile <lightweight|full>] [--migrate-legacy] [--silent] [--verify] [--uninstall] [--purge-data] [--autostart] [--dry-run] [--data-dir <dir>] [--log-dir <dir>]");
-            return 0;
-        }
+        return hostResult.ExitCode;
+    }
 
-        var appEnv = new AppEnvironment("mother", args, AppContext.BaseDirectory, "install-config.json");
-        bool isIsolated = IsIsolatedContext(appEnv);
-        string? cliInstallDir = ReadFlagValue(args, "--install-dir");
-        string? cliSuiteDir = ReadFlagValue(args, "--suite-dir");
-        string? cliProfile = ReadFlagValue(args, "--profile");
-        string? cliPayload = ReadFlagValue(args, "--payload");
-        bool isUninstall = HasFlag(args, "--uninstall");
-        bool isVerify = HasFlag(args, "--verify");
-        bool isSilent = HasFlag(args, "--silent");
-        bool purgeData = HasFlag(args, "--purge-data");
-        bool autoStart = HasFlag(args, "--autostart");
-        bool migrateLegacy = HasFlag(args, "--migrate-legacy");
+    internal static InstallerAppDescriptor CreateBaseDescriptor(string version) => new(
+        ProductName: "Mother",
+        DisplayName: "Mother",
+        Publisher: "StreamItAll",
+        Version: string.IsNullOrWhiteSpace(version) ? "0.3.0" : version.Trim(),
+        MainExecutableRelativePath: "Mother.exe",
+        Subtitle: "Clean Release Root (Mother.exe + app\\, scripts\\, data\\)",
+        EmbeddedPayloadResourceName: EmbeddedPayloadName,
+        BrandAccentHex: "#38BDF8",
+        AllowAutoStart: true,
+        StudioName: "StreamItAll",
+        SuiteName: "Mother",
+        UmbrellaSubpath: Path.Combine("StreamItAll", "Mother", "Mother"),
+        DefaultProfile: "full",
+        AllowLegacyMigration: true);
 
-        InstallerThemeOptions theme = BuildOptions(appEnv, version, cliSuiteDir);
-        var coreEngine = new InstallerEngineCore(theme, appEnv);
-
-        if (isVerify)
-        {
-            bool ok = coreEngine.VerifyInstallation(cliInstallDir, out string msg);
-            Console.WriteLine(msg);
-            return ok ? 0 : 1;
-        }
-
-        if (isSilent)
-        {
-            if (isUninstall)
-            {
-                FoundationInstallResult ures = ExecuteUninstall(coreEngine, appEnv, isIsolated, cliInstallDir, purgeData);
-                Console.WriteLine(ures.Message);
-                return ures.Success ? 0 : 1;
-            }
-
-            FoundationInstallResult res = ExecuteInstallAsync(
-                coreEngine,
-                isIsolated,
-                payloadAssembly,
-                cliPayload,
-                cliInstallDir,
-                cliSuiteDir,
-                cliProfile ?? theme.DefaultProfileId,
-                migrateLegacy,
-                createShortcuts: true,
-                autoStart: autoStart,
-                onProgress: null,
-                CancellationToken.None).GetAwaiter().GetResult();
-
-            Console.WriteLine(res.Message);
-            return res.Success ? 0 : 1;
-        }
-
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
-
-        InstallerWizardForm? wizard = null;
-        wizard = new InstallerWizardForm(
-            coreEngine,
-            isUninstallMode: isUninstall,
-            initialInstallDir: cliInstallDir,
-            customInstallAction: (ct, progress) =>
-            {
-                if (isUninstall)
-                {
-                    return Task.FromResult(ExecuteUninstall(coreEngine, appEnv, isIsolated, wizard?.InstallDirTextBox.Text.Trim() ?? cliInstallDir, purgeData));
-                }
-
-                return ExecuteInstallAsync(
-                    coreEngine,
-                    isIsolated,
-                    payloadAssembly,
-                    cliPayload,
-                    wizard?.InstallDirTextBox.Text.Trim() ?? cliInstallDir,
-                    wizard?.SecondaryInstallDir is { Length: > 0 } sec ? sec : cliSuiteDir,
-                    wizard?.SelectedProfileId ?? cliProfile ?? theme.DefaultProfileId,
-                    wizard?.MigrateLegacyChecked ?? migrateLegacy,
-                    createShortcuts: wizard?.ShortcutsCheckBox.Checked ?? true,
-                    autoStart: wizard?.AutoStartCheckBox.Checked ?? autoStart,
-                    onProgress: progress,
-                    ct: ct);
-            },
-            initialProfileId: cliProfile,
-            initialSecondaryDir: cliSuiteDir,
-            initialMigrateLegacy: migrateLegacy);
-
-        Application.Run(wizard);
-        return wizard.ExitCode;
+    internal static InstallerAppDescriptor ResolveEffectiveDescriptor(string version, Assembly? payloadAssembly = null)
+    {
+        InstallerAppDescriptor baseDescriptor = CreateBaseDescriptor(version);
+        Assembly resolvedAssembly = payloadAssembly ?? typeof(MotherInstallerRunner).Assembly;
+        InstallerMarkupManifest? markup = InstallerManifestStore.TryLoadFromDirectoryOrAssembly(
+            AppContext.BaseDirectory,
+            resolvedAssembly);
+        return markup is not null
+            ? InstallerManifestStore.ApplyToDescriptor(baseDescriptor, markup)
+            : baseDescriptor;
     }
 
     public static InstallerThemeOptions BuildOptions(AppEnvironment appEnv, string version, string? suiteDirOverride = null)
     {
+        ArgumentNullException.ThrowIfNull(appEnv);
         string defaultInstallDir = ResolveMotherDefaultInstallDir(appEnv);
         string defaultSuiteDir = !string.IsNullOrWhiteSpace(suiteDirOverride)
             ? Path.GetFullPath(suiteDirOverride.Trim())
             : (Path.GetDirectoryName(defaultInstallDir) ?? defaultInstallDir);
 
+        InstallerMarkupManifest? markup = InstallerManifestStore.TryLoadFromDirectoryOrAssembly(
+            AppContext.BaseDirectory,
+            typeof(MotherInstallerRunner).Assembly);
+        if (markup is not null)
+        {
+            InstallerThemeOptions fromManifest = InstallerManifestStore.ToThemeOptions(markup, defaultInstallDir);
+            return fromManifest with
+            {
+                Version = string.IsNullOrWhiteSpace(version) ? fromManifest.Version : version.Trim(),
+                BootstrapSharedSuiteDaemon = false,
+                UninstallerFileName = "Mother-Uninstall.exe",
+                UmbrellaSubpath = Path.Combine("StreamItAll", "Mother", "Mother"),
+                SecondaryPathPicker = new SecondaryPathPickerOptions(
+                    FlagName: "--suite-dir",
+                    Label: "Shared Suite Umbrella Directory:",
+                    DefaultPath: defaultSuiteDir,
+                    Placeholder: defaultSuiteDir,
+                    Tooltip: "Root directory containing Mother and installed sister applications.")
+            };
+        }
+
         return new InstallerThemeOptions
         {
             AppId = "mother",
             DisplayName = "Mother",
-            Version = version,
+            Version = string.IsNullOrWhiteSpace(version) ? "0.3.0" : version.Trim(),
             Subtitle = "Clean Release Root (Mother.exe + app\\, scripts\\, data\\)",
             BrandAccentHex = "#38BDF8",
             DefaultInstallDir = defaultInstallDir,
@@ -183,144 +157,206 @@ internal static class MotherInstallerRunner
 
     public static string ResolveMotherDefaultInstallDir(AppEnvironment appEnv)
     {
+        ArgumentNullException.ThrowIfNull(appEnv);
         if (IsIsolatedContext(appEnv))
         {
             return Path.Combine(appEnv.DataDirectory, "installed-app");
         }
 
-        string? motherHome = Environment.GetEnvironmentVariable("MOTHER_HOME");
-        if (!string.IsNullOrWhiteSpace(motherHome))
-        {
-            return Path.GetFullPath(motherHome.Trim());
-        }
-
-        if (OperatingSystem.IsWindows())
-        {
-            using RegistryKey? key = Registry.CurrentUser.OpenSubKey(@"Software\StreamItAll\Mother");
-            string? regDir = key?.GetValue("InstallDir") as string;
-            if (!string.IsNullOrWhiteSpace(regDir))
-            {
-                return Path.GetFullPath(regDir.Trim());
-            }
-        }
-
-        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localAppData, "Programs", "StreamItAll", "Mother", "Mother");
+        SandboxResolution sandbox = appEnv.Sandbox.IsSandboxActive ? appEnv.Sandbox : SandboxResolution.Inactive;
+        IPlatformRegistry registry = PlatformRegistryFactory.CreateDefault(sandbox, suppressMutations: false);
+        return MotherInstallerIntegration.ResolveMotherDefaultInstallDirCore(sandbox, registry, dataDir: null, isStage1Isolated: false, engine: null);
     }
 
-    private static async Task<FoundationInstallResult> ExecuteInstallAsync(
-        InstallerEngineCore engine,
-        bool isIsolated,
-        Assembly payloadAssembly,
-        string? externalPayloadPath,
-        string? installDir,
-        string? suiteDir,
-        string profileId,
-        bool migrateLegacy,
-        bool createShortcuts,
-        bool autoStart,
-        Action<int, string>? onProgress,
-        CancellationToken ct)
+    internal static string ResolveMotherDefaultInstallDir(InstallerRuntimeContext ctx, InstallerEngine? engine = null)
     {
-        await using Stream payloadStream = OpenPayloadStream(payloadAssembly, externalPayloadPath);
-        FoundationInstallResult result = await engine.InstallOrUpgradeFromZipAsync(
-            payloadStream,
-            installDir,
-            onProgress,
-            ct).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(ctx);
+        SandboxResolution sandbox = ctx.IsSandboxActive ? ctx.Sandbox : SandboxResolution.Inactive;
+        return MotherInstallerIntegration.ResolveMotherDefaultInstallDirCore(sandbox, ctx.Registry, ctx.DataDirectory, ctx.IsStage1Isolated, engine);
+    }
 
-        if (!result.Success)
+#if DEBUG || MOTHER_TEST_AUTOMATION
+    private static int RunInteractiveWizardWithAutomation(
+        InstallerAppDescriptor descriptor,
+        InstallerCliOptions cli,
+        string[] automationArgs,
+        Assembly payloadAssembly)
+    {
+        InstallerRuntimeContext? ctx = null;
+        try
         {
-            return result;
-        }
+            ctx = new InstallerRuntimeContext(
+                cliDataDir: cli.DataDir,
+                cliConfigPath: cli.ConfigPath,
+                cliLogDir: cli.LogDir,
+                dryRun: cli.DryRun,
+                envPrefix: descriptor.EnvPrefix);
 
-        string normalizedSuiteDir = !string.IsNullOrWhiteSpace(suiteDir)
-            ? Path.GetFullPath(suiteDir.Trim())
-            : (Path.GetDirectoryName(result.InstallDirectory) ?? result.InstallDirectory);
+            var guiEngine = new InstallerEngine(descriptor, ctx, payloadAssembly);
+            string resolvedInitialDir = !string.IsNullOrWhiteSpace(cli.InstallDir)
+                ? Path.GetFullPath(cli.InstallDir.Trim())
+                : ResolveMotherDefaultInstallDir(ctx, guiEngine);
+            string defaultSuiteDir = Path.GetDirectoryName(resolvedInitialDir) ?? resolvedInitialDir;
 
-        if (isIsolated && !string.IsNullOrWhiteSpace(suiteDir))
-        {
-            string root = ResolveIsolatedContainmentRoot(engine.RuntimeEnvironment.DataDirectory) ?? engine.RuntimeEnvironment.DataDirectory;
-            AppEnvironment.AssertPathContained(normalizedSuiteDir, root);
-        }
+            string? pickerDefault = !string.IsNullOrWhiteSpace(cli.SecondaryDir)
+                ? cli.SecondaryDir
+                : (!string.IsNullOrWhiteSpace(ctx.ConfigOverride?.SuiteInstallDir)
+                    ? ctx.ConfigOverride.SuiteInstallDir
+                    : defaultSuiteDir);
 
-        if (!engine.RuntimeEnvironment.DryRun)
-        {
-            MotherInstallerIntegration.CopyUninstallerSelf(result.InstallDirectory);
-            var plan = MotherInstallerIntegration.PlanLivePostInstallActions(
-                isIsolated,
-                engine.RuntimeEnvironment.DryRun,
-                OperatingSystem.IsWindows(),
-                createShortcuts,
-                autoStart);
-            if (plan.WriteShortcuts || plan.WriteAutoStart || plan.WriteRegistry)
+            InstallerAppDescriptor wizardDescriptor = descriptor.SecondaryPickers is { Count: > 0 } pickers
+                ? descriptor with
+                {
+                    SecondaryPickers = pickers
+                        .Select((p, idx) => idx == 0 ? p with { DefaultPath = pickerDefault } : p)
+                        .ToList()
+                }
+                : descriptor;
+            var configuredEngine = new InstallerEngine(wizardDescriptor, ctx, payloadAssembly);
+
+            InitializeWinFormsHost();
+
+            bool effectiveAutoStart = wizardDescriptor.AllowAutoStart && cli.AutoStart;
+            bool explicitMigrate = cli.MigrateLegacy || (ctx.ConfigOverride?.MigrateLegacy ?? false);
+            bool showLegacy = wizardDescriptor.AllowLegacyMigration || explicitMigrate;
+            bool passExplicitSecondary = !string.IsNullOrWhiteSpace(cli.SecondaryDir) &&
+                                         string.Equals(cli.SecondaryFlagName, "--reengine-dir", StringComparison.OrdinalIgnoreCase);
+
+            using var wizard = new InstallerWizardForm(
+                engine: configuredEngine,
+                ctx: ctx,
+                initialInstallDir: resolvedInitialDir,
+                externalPayloadPath: cli.PayloadPath,
+                isUninstallMode: cli.Uninstall,
+                initialCreateShortcuts: !cli.NoShortcuts,
+                initialAutoStart: effectiveAutoStart,
+                initialLaunchAfter: !cli.NoLaunch,
+                initialPurgeData: cli.PurgeData,
+                initialProfileId: cli.ProfileId,
+                initialSecondaryDir: passExplicitSecondary ? cli.SecondaryDir : null,
+                secondaryFlagName: passExplicitSecondary ? cli.SecondaryFlagName : null,
+                initialMigrateLegacy: explicitMigrate,
+                showLegacyMigration: showLegacy,
+                payloadAssembly: payloadAssembly);
+
+            using AutomationLoopbackServer? automationServer = AutomationCliHelper.TryCreateFromArgs(
+                "mother-installer",
+                automationArgs,
+                wizard);
+            automationServer?.Start();
+
+            Application.Run(wizard);
+
+            if (wizard.ExitCode == 0)
             {
-                MotherInstallerIntegration.ApplyLivePostInstallActions(engine, result.InstallDirectory, normalizedSuiteDir, profileId, plan);
+                if (cli.Uninstall)
+                {
+                    MotherInstallerIntegration.RemoveMotherSuiteMetadata(ctx);
+                }
+                else
+                {
+                    string chosenInstallDir = wizard.InstallDirTextBox.Text.Trim();
+                    string chosenSuiteDir = wizard.SecondaryInstallDir;
+                    MotherInstallerIntegration.RegisterMotherSuiteMetadata(
+                        ctx,
+                        chosenInstallDir,
+                        chosenSuiteDir,
+                        wizard.SelectedProfileId,
+                        wizardDescriptor.Version);
+
+                    if (wizard.MigrateLegacyChecked)
+                    {
+                        MotherInstallerIntegration.TryMigrateLegacyMotherInstallAsync(
+                            ctx,
+                            wizardDescriptor,
+                            chosenInstallDir,
+                            CancellationToken.None).GetAwaiter().GetResult();
+                    }
+                }
             }
+
+            return wizard.ExitCode;
+        }
+        catch (Exception ex)
+        {
+            int exitCode = SandboxEnvironmentSeam.IsContainmentViolation(ex)
+                ? SandboxEnvironmentSeam.ContainmentExitCode
+                : 1;
+            ctx?.WriteLog("ERROR", $"Installer automation wizard failed (ExitCode={exitCode}): {ex.Message}");
+            Console.Error.WriteLine($"Setup error: {ex.Message}");
+            return exitCode;
+        }
+    }
+
+    private static void InitializeWinFormsHost()
+    {
+        try
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _ = ex; // WinForms host initialization may already be active inside test runners.
+        }
+    }
+
+    private static bool IsIsolatedTestEnv()
+    {
+        string? raw = Environment.GetEnvironmentVariable(SandboxEnvironmentSeam.EnvIsolatedTest);
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+        string v = raw.Trim();
+        return v.Equals("1", StringComparison.OrdinalIgnoreCase) ||
+               v.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+               v.Equals("yes", StringComparison.OrdinalIgnoreCase);
+    }
+#endif
+
+    private static void ApplyPostHostIntegration(
+        InstallerAppDescriptor descriptor,
+        InstallerCliOptions cli,
+        InstallerHostRunResult hostResult)
+    {
+        var ctx = new InstallerRuntimeContext(
+            cliDataDir: cli.DataDir,
+            cliConfigPath: cli.ConfigPath,
+            cliLogDir: cli.LogDir,
+            dryRun: cli.DryRun,
+            envPrefix: descriptor.EnvPrefix);
+
+        if (cli.Uninstall)
+        {
+            MotherInstallerIntegration.RemoveMotherSuiteMetadata(ctx);
+            return;
         }
 
+        string? installedDir = hostResult.OperationResult?.InstallDirectory;
+        if (string.IsNullOrWhiteSpace(installedDir))
+        {
+            installedDir = ctx.Registry
+                .GetValue(PlatformRegistryHive.CurrentUser, descriptor.WindowsUninstallRegistrySubKey, "InstallLocation")
+                ?.AsString();
+        }
+        if (string.IsNullOrWhiteSpace(installedDir) || !Directory.Exists(installedDir))
+        {
+            return;
+        }
+
+        InstallManifest? manifest = MotherInstallerIntegration.TryReadInstallManifest(installedDir);
+        string? suiteDir = !string.IsNullOrWhiteSpace(cli.SuiteDir) ? cli.SuiteDir : manifest?.SuiteInstallDir;
+        string profileId = !string.IsNullOrWhiteSpace(cli.ProfileId) ? cli.ProfileId : (manifest?.InstallProfile ?? descriptor.DefaultProfile);
+        bool migrateLegacy = cli.MigrateLegacy || (manifest?.MigrateLegacy ?? false);
+
+        MotherInstallerIntegration.RegisterMotherSuiteMetadata(ctx, installedDir, suiteDir, profileId, descriptor.Version);
         if (migrateLegacy)
         {
-            string? legacyPath = engine.DetectLegacyFlatInstall();
-            if (!string.IsNullOrWhiteSpace(legacyPath))
-            {
-                await engine.MigrateLegacyInstallAsync(
-                    legacyPath,
-                    result.InstallDirectory,
-                    optInConfirmed: true,
-                    dryRun: engine.RuntimeEnvironment.DryRun,
-                    ct).ConfigureAwait(false);
-            }
+            MotherInstallerIntegration.TryMigrateLegacyMotherInstallAsync(
+                ctx,
+                descriptor,
+                installedDir,
+                CancellationToken.None).GetAwaiter().GetResult();
         }
-
-        return result;
-    }
-
-    private static Stream OpenPayloadStream(Assembly payloadAssembly, string? externalPayloadPath)
-    {
-        if (!string.IsNullOrWhiteSpace(externalPayloadPath))
-        {
-            string full = Path.GetFullPath(externalPayloadPath.Trim());
-            if (!File.Exists(full))
-            {
-                throw new FileNotFoundException($"External installer payload not found: '{full}'.", full);
-            }
-            return File.OpenRead(full);
-        }
-
-        return payloadAssembly.GetManifestResourceStream(EmbeddedPayloadName)
-            ?? throw new InvalidOperationException($"Missing embedded installer resource '{EmbeddedPayloadName}'.");
-    }
-
-    internal static FoundationInstallResult ExecuteUninstall(
-        InstallerEngineCore coreEngine,
-        AppEnvironment appEnv,
-        bool isIsolated,
-        string? installDir,
-        bool purgeData)
-    {
-        if (appEnv.DryRun)
-        {
-            string target = string.IsNullOrWhiteSpace(installDir)
-                ? coreEngine.Theme.DefaultInstallDir
-                : Path.GetFullPath(installDir.Trim());
-            if (isIsolated)
-            {
-                string boundary = ResolveIsolatedContainmentRoot(appEnv.DataDirectory) ?? appEnv.DataDirectory;
-                target = AppEnvironment.AssertPathContained(target, boundary);
-            }
-            return new FoundationInstallResult(
-                true,
-                target,
-                string.Empty,
-                0,
-                $"Dry-run simulated uninstall for '{target}' (purgeData={purgeData}); no files removed.",
-                false);
-        }
-
-        FoundationInstallResult ures = coreEngine.Uninstall(installDir, purgeData);
-        MotherInstallerIntegration.RemoveShortcutsIfLive(appEnv, isIsolated);
-        return ures;
     }
 
     internal static bool IsIsolatedContext(AppEnvironment appEnv) =>
@@ -329,32 +365,4 @@ internal static class MotherInstallerRunner
             Path.GetFullPath(appEnv.DataDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             Path.GetFullPath(Path.Combine(appEnv.BaseDirectory, "data")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             StringComparison.OrdinalIgnoreCase);
-
-    internal static string? ResolveIsolatedContainmentRoot(string dataDirectory)
-    {
-        if (string.IsNullOrWhiteSpace(dataDirectory)) return null;
-        string full = Path.GetFullPath(dataDirectory.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (!string.Equals(Path.GetFileName(full), "data", StringComparison.OrdinalIgnoreCase))
-            return null;
-        string? parent = Directory.GetParent(full)?.FullName;
-        if (string.IsNullOrWhiteSpace(parent)) return null;
-        string normParent = parent.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        string normTemp = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return string.Equals(normParent, normTemp, StringComparison.OrdinalIgnoreCase) ? null : normParent;
-    }
-
-    private static bool HasFlag(IReadOnlyList<string> args, string flagName) =>
-        args.Any(a => string.Equals(a, flagName, StringComparison.OrdinalIgnoreCase));
-
-    private static string? ReadFlagValue(IReadOnlyList<string> args, string flagName)
-    {
-        for (int i = 0; i < args.Count; i++)
-        {
-            if (string.Equals(args[i], flagName, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Count)
-                return args[i + 1];
-            if (args[i].StartsWith(flagName + "=", StringComparison.OrdinalIgnoreCase))
-                return args[i][(flagName.Length + 1)..].Trim('"');
-        }
-        return null;
-    }
 }

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://schemas.local/manifest.v2.json",
+  "schemaVersion": 2,
+  "manifestType": "installer-manifest",
+  "appId": "mother",
+  "version": "0.3.0",
+  "updatedAtUtc": "2026-11-19T08:30:00.000Z",
+  "displayName": "Mother",
+  "publisher": "StreamItAll",
+  "subtitle": "Clean Release Root (Mother.exe + app\\, scripts\\, data\\)",
+  "studioName": "StreamItAll",
+  "suiteName": "Mother",
+  "umbrellaSubpath": "StreamItAll\\Mother\\Mother",
+  "mainExecutableRelativePath": "Mother.exe",
+  "logoPath": "Mother.Installer.Assets.logo.png",
+  "iconPath": "Mother.Installer.Assets.app_icon.ico",
+  "layoutMode": "single-line",
+  "supportedProfiles": [
+    "lightweight",
+    "full",
+    "custom"
+  ],
+  "defaultProfile": "full",
+  "allowAutoStart": true,
+  "allowLegacyMigration": true,
+  "theme": {
+    "background": "#0B0E14",
+    "surface": "#121722",
+    "accent": "#38BDF8",
+    "text": "#E2E8F0",
+    "border": "#1F2937"
+  },
+  "buttons": {
+    "installText": "Install Now",
+    "upgradeText": "Upgrade Now",
+    "uninstallText": "Uninstall",
+    "cancelText": "Cancel"
+  },
+  "tooltips": {
+    "installDir": {
+      "title": "Mother Install Folder",
+      "description": "Destination for Mother.exe and app\\, scripts\\, data\\ Clean Release Root."
+    },
+    "secondaryDir": {
+      "title": "Shared Suite Umbrella Directory",
+      "description": "Root umbrella directory containing Mother and installed sister applications."
+    },
+    "autoStart": {
+      "title": "Launch at Windows Sign-In",
+      "description": "Adds Mother to your Startup folder so the :5100 suite daemon stays ready."
+    },
+    "migrateLegacy": {
+      "title": "Migrate Legacy Installation",
+      "description": "Opt-in copy of existing settings, data, and logs into the new umbrella layout."
+    }
+  },
+  "secondaryPickers": [
+    {
+      "flagName": "--suite-dir",
+      "label": "Shared Suite Umbrella Directory:",
+      "placeholder": "%LOCALAPPDATA%\\Programs\\StreamItAll\\Mother",
+      "tooltip": "Root directory containing Mother and installed sister applications."
+    }
+  ]
+}
