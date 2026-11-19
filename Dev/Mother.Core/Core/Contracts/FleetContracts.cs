@@ -7,6 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
+using Mother.Core.Configuration;
+
 namespace Mother.Core.Contracts;
 
 public sealed record SisterScheduleEntry(
@@ -45,7 +47,7 @@ public sealed record SisterAppEntry
     public string MinSuiteVersion { get; init; } = "0.1.0";
 
     [JsonPropertyName("sdkVersion")]
-    public string SdkVersion { get; init; } = "0.4.1-hf.1";
+    public string SdkVersion { get; init; } = MotherBuildConstants.SdkVersion;
 
     [JsonPropertyName("brandAccent")]
     public string BrandAccent { get; init; } = "#38bdf8";
@@ -156,7 +158,7 @@ public sealed record FleetConflictDto(
 );
 
 public sealed record CoexistenceStatusDto(
-    [property: JsonPropertyName("autoAlignWithSisterApps")] bool AutoAlignWithSisterApps,
+    [property: JsonPropertyName("shouldAutoAlignSisterApps")] bool ShouldAutoAlignSisterApps,
     [property: JsonPropertyName("sharedRoots")] IReadOnlyList<string> SharedRoots,
     [property: JsonPropertyName("conflicts")] IReadOnlyList<FleetConflictDto> Conflicts,
     [property: JsonPropertyName("apps")] IReadOnlyList<SisterAppRuntimeDto> Apps

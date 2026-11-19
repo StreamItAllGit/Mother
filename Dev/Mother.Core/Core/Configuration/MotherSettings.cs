@@ -13,7 +13,7 @@ namespace Mother.Core.Configuration;
 public sealed class MotherSettings
 {
     [JsonPropertyName("schemaVersion")]
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     [JsonPropertyName("useGlobalFormatRules")]
     public bool UseGlobalFormatRules { get; set; } = true;
@@ -24,17 +24,17 @@ public sealed class MotherSettings
     [JsonPropertyName("bindHost")]
     public string BindHost { get; set; } = "127.0.0.1";
 
-    [JsonPropertyName("allowTailscaleBind")]
-    public bool AllowTailscaleBind { get; set; }
+    [JsonPropertyName("shouldAllowTailscaleBind")]
+    public bool ShouldAllowTailscaleBind { get; set; }
 
-    [JsonPropertyName("coldWakeIdleMinutes")]
-    public int ColdWakeIdleMinutes { get; set; } = 15;
+    [JsonPropertyName("idleTimeoutMinutes")]
+    public int IdleTimeoutMinutes { get; set; } = 15;
 
     [JsonPropertyName("healthPollIntervalMs")]
     public int HealthPollIntervalMs { get; set; } = 5000;
 
-    [JsonPropertyName("sleepInhibitDuringActiveLock")]
-    public bool SleepInhibitDuringActiveLock { get; set; } = true;
+    [JsonPropertyName("shouldInhibitSleepDuringActiveLock")]
+    public bool ShouldInhibitSleepDuringActiveLock { get; set; } = true;
 
     [JsonPropertyName("postRunPowerPolicy")]
     public string PostRunPowerPolicy { get; set; } = "StayAwake";
@@ -45,14 +45,14 @@ public sealed class MotherSettings
     [JsonPropertyName("postRunCountdownSeconds")]
     public int PostRunCountdownSeconds { get; set; } = 60;
 
-    [JsonPropertyName("autoAlignWithSisterApps")]
-    public bool AutoAlignWithSisterApps { get; set; }
+    [JsonPropertyName("shouldAutoAlignSisterApps")]
+    public bool ShouldAutoAlignSisterApps { get; set; }
 
-    [JsonPropertyName("desktopToastNotifications")]
-    public bool DesktopToastNotifications { get; set; } = true;
+    [JsonPropertyName("shouldShowDesktopToasts")]
+    public bool ShouldShowDesktopToasts { get; set; } = true;
 
-    [JsonPropertyName("discordWebhookNotifications")]
-    public bool DiscordWebhookNotifications { get; set; }
+    [JsonPropertyName("shouldSendDiscordWebhooks")]
+    public bool ShouldSendDiscordWebhooks { get; set; }
 
     [JsonPropertyName("customManifestRoots")]
     public List<string> CustomManifestRoots { get; set; } = new();
@@ -68,10 +68,10 @@ public sealed class MotherSettings
 
     public MotherSettings Normalized()
     {
-        SchemaVersion = SchemaVersion <= 0 ? 1 : SchemaVersion;
+        SchemaVersion = SchemaVersion < 2 ? 2 : SchemaVersion;
         Port = Port is > 0 and <= 65535 ? Port : 5100;
         BindHost = string.IsNullOrWhiteSpace(BindHost) ? "127.0.0.1" : BindHost.Trim();
-        ColdWakeIdleMinutes = Math.Clamp(ColdWakeIdleMinutes, 1, 1440);
+        IdleTimeoutMinutes = Math.Clamp(IdleTimeoutMinutes, 1, 1440);
         HealthPollIntervalMs = Math.Clamp(HealthPollIntervalMs, 1000, 60000);
         PostRunIdleSeconds = Math.Clamp(PostRunIdleSeconds, 5, 3600);
         PostRunCountdownSeconds = Math.Clamp(PostRunCountdownSeconds, 5, 600);

@@ -1,9 +1,8 @@
 # ==============================================================================
-# 1. 5-Folder Outer Container Exclusions (Local / Packaged / Ephemeral)
+# 1. 4-Folder Outer Container Exclusions (Local / Packaged / Ephemeral)
 # ==============================================================================
 /Archive/
 /Builds/
-/Installers/
 /Releases/
 Dev/docs/*/
 
@@ -34,6 +33,9 @@ Dev/lib/*.dll
 Dev/lib/*.pdb
 Dev/lib/*.xml
 Dev/lib/*.deps.json
+Dev/lib/WebAssets/
+Dev/lib/foundation_core/
+Dev/lib/sdk-manifest.json
 
 # ==============================================================================
 # 4. Unity / Game Engine Generated Directories (Outside Dev/Assets & Dev/Packages)

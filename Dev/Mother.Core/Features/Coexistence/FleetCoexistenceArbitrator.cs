@@ -148,7 +148,7 @@ public sealed class FleetCoexistenceArbitrator
         }
 
         return new CoexistenceStatusDto(
-            AutoAlignWithSisterApps: _settings.GetCurrent().AutoAlignWithSisterApps,
+            ShouldAutoAlignSisterApps: _settings.GetCurrent().ShouldAutoAlignSisterApps,
             SharedRoots: sharedRoots.OrderBy(r => r, StringComparer.OrdinalIgnoreCase).ToList(),
             Conflicts: conflicts,
             Apps: apps);

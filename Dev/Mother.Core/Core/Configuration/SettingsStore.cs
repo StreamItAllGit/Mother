@@ -68,6 +68,14 @@ public sealed class SettingsStore
         return GetCurrent();
     }
 
+    public MotherSettings ApplyAndSaveJson(JsonElement rawPayload)
+    {
+        string json = rawPayload.GetRawText();
+        MotherSettings updated = JsonSerializer.Deserialize<MotherSettings>(json, JsonOptions)?.Normalized()
+            ?? throw new InvalidDataException("Settings payload could not be parsed.");
+        return Save(updated);
+    }
+
     public IReadOnlyList<SettingsSnapshotSummary> ListSnapshots()
     {
         string targetName = Path.GetFileName(_settingsFileTarget);

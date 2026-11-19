@@ -26,7 +26,7 @@ public static class MotherWebHost
         });
 
         int port = runtime.ResolveListenPort();
-        bool allowTailscale = runtime.Settings.GetCurrent().AllowTailscaleBind;
+        bool allowTailscale = runtime.Settings.GetCurrent().ShouldAllowTailscaleBind;
 
         builder.WebHost.ConfigureKestrel(kestrel =>
         {

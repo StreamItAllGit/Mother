@@ -35,6 +35,9 @@
     <Reference Include="Foundation.Installer">
       <HintPath>..\lib\Foundation.Installer.dll</HintPath>
     </Reference>
+    <Reference Include="Foundation.Automation">
+      <HintPath>..\lib\Foundation.Automation.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <Target Name="ExcludeWebView2WpfWrapper" BeforeTargets="ResolveAssemblyReferences">

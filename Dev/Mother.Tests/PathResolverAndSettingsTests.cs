@@ -60,7 +60,7 @@ public sealed class PathResolverAndSettingsTests
         for (int i = 0; i < 24; i++)
         {
             var next = runtime.Settings.GetCurrent();
-            next.ColdWakeIdleMinutes = 10 + i;
+            next.IdleTimeoutMinutes = 10 + i;
             runtime.Settings.Save(next);
         }
 

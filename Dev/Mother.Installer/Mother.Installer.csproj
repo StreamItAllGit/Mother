@@ -16,6 +16,10 @@
     <EnableCompressionInSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' or '$(MotherTestAutomation)' == 'true'">
+    <DefineConstants>$(DefineConstants);MOTHER_TEST_AUTOMATION</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Mother.Tests" />
   </ItemGroup>
@@ -31,16 +35,31 @@
     </Reference>
     <EmbeddedResource Include="..\Assets\app_icon.ico" LogicalName="Mother.Installer.Assets.app_icon.ico" />
     <EmbeddedResource Include="..\Assets\logo.png" LogicalName="Mother.Installer.Assets.logo.png" />
+    <EmbeddedResource Include="installer.manifest.json"
+                      LogicalName="Mother.Installer.Embedded.installer.manifest.json"
+                      Condition="Exists('installer.manifest.json')" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)' == 'Debug' or '$(MotherTestAutomation)' == 'true'">
+    <Reference Include="Foundation.Automation">
+      <HintPath>..\lib\Foundation.Automation.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <Target Name="CompressFoundationAssemblies"
           BeforeTargets="AssignTargetPaths;PrepareResourceNames;PrepareResources">
     <MakeDir Directories="$(IntermediateOutputPath)" />
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;foreach ($n in @('Foundation.Core.dll','Foundation.Installer.dll')) { $src = Join-Path '$(MSBuildProjectDirectory)\..\lib' $n; $dst = Join-Path '$(MSBuildProjectDirectory)\$(IntermediateOutputPath)' ($n + '.gz'); $inBytes = [System.IO.File]::ReadAllBytes($src); $fs = [System.IO.File]::Create($dst); try { $gz = New-Object System.IO.Compression.GZipStream($fs, [System.IO.Compression.CompressionLevel]::Optimal); try { $gz.Write($inBytes, 0, $inBytes.Length) } finally { $gz.Dispose() } } finally { $fs.Dispose() } }&quot;" />
+    <Exec Condition="'$(Configuration)' == 'Debug' or '$(MotherTestAutomation)' == 'true'"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;$src = Join-Path '$(MSBuildProjectDirectory)\..\lib' 'Foundation.Automation.dll'; $dst = Join-Path '$(MSBuildProjectDirectory)\$(IntermediateOutputPath)' 'Foundation.Automation.dll.gz'; $inBytes = [System.IO.File]::ReadAllBytes($src); $fs = [System.IO.File]::Create($dst); try { $gz = New-Object System.IO.Compression.GZipStream($fs, [System.IO.Compression.CompressionLevel]::Optimal); try { $gz.Write($inBytes, 0, $inBytes.Length) } finally { $gz.Dispose() } } finally { $fs.Dispose() }&quot;" />
     <ItemGroup>
-      <EmbeddedResource Remove="$(IntermediateOutputPath)Foundation.Core.dll.gz;$(IntermediateOutputPath)Foundation.Installer.dll.gz" />
+      <EmbeddedResource Remove="$(IntermediateOutputPath)Foundation.Core.dll.gz;$(IntermediateOutputPath)Foundation.Installer.dll.gz;$(IntermediateOutputPath)Foundation.Automation.dll.gz" />
       <EmbeddedResource Include="$(IntermediateOutputPath)Foundation.Core.dll.gz" LogicalName="Foundation.Core.dll.gz" />
       <EmbeddedResource Include="$(IntermediateOutputPath)Foundation.Installer.dll.gz" LogicalName="Foundation.Installer.dll.gz" />
+      <EmbeddedResource Include="$(IntermediateOutputPath)Foundation.Automation.dll.gz"
+                        LogicalName="Foundation.Automation.dll.gz"
+                        Condition="'$(Configuration)' == 'Debug' or '$(MotherTestAutomation)' == 'true'" />
     </ItemGroup>
   </Target>
 

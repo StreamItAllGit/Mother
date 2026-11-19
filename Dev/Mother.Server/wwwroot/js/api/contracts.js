@@ -1,7 +1,7 @@
 // @module: Mother.Server.Web.Api.Contracts
-// @purpose: Frozen Standard 18 §3 SQLite wire-key schemas and canonical sister-app tab registry for 1:1 backend/frontend lockstep.
+// @purpose: Frozen Standard 18 §3 SQLite wire-key schemas for 1:1 backend/frontend lockstep.
 // @depends-on: None
-// @exports: SUITE_DB_WIRE_KEYS, FLEET_HEALTH_EVENT_KEYS, SCHEDULE_DEFERRAL_KEYS, NOTIFICATION_HISTORY_KEYS, RUNTIME_APP_KEYS, SUITE_HEALTH_KEYS, TRAFFIC_COP_STATUS_KEYS, HK_LOCK_SNAPSHOT_KEYS, FLEET_CONFLICT_KEYS, COEXISTENCE_STATUS_KEYS, POWER_STATUS_KEYS, DOCTOR_CHECK_KEYS, DOCTOR_REPORT_KEYS, SETTINGS_SNAPSHOT_KEYS, SECRET_KEY_METADATA_KEYS, DEFAULT_SISTER_TABS
+// @exports: SUITE_DB_WIRE_KEYS, FLEET_HEALTH_EVENT_KEYS, SCHEDULE_DEFERRAL_KEYS, NOTIFICATION_HISTORY_KEYS, RUNTIME_APP_KEYS, SUITE_HEALTH_KEYS, TRAFFIC_COP_STATUS_KEYS, HK_LOCK_SNAPSHOT_KEYS, FLEET_CONFLICT_KEYS, COEXISTENCE_STATUS_KEYS, POWER_STATUS_KEYS, DOCTOR_CHECK_KEYS, DOCTOR_REPORT_KEYS, SETTINGS_SNAPSHOT_KEYS, SECRET_KEY_METADATA_KEYS
 
 export const FLEET_HEALTH_EVENT_KEYS = Object.freeze([
   'id',
@@ -137,7 +137,7 @@ export const FLEET_CONFLICT_KEYS = Object.freeze([
 ]);
 
 export const COEXISTENCE_STATUS_KEYS = Object.freeze([
-  'autoAlignWithSisterApps',
+  'shouldAutoAlignSisterApps',
   'sharedRoots',
   'conflicts',
   'apps',
@@ -186,14 +186,4 @@ export const SECRET_KEY_METADATA_KEYS = Object.freeze([
   'keyName',
   'vaultSizeBytes',
   'lastModifiedUtc',
-]);
-
-export const DEFAULT_SISTER_TABS = Object.freeze([
-  { appId: 'mother', name: 'Mother', port: 5100, accent: '#38bdf8' },
-  { appId: 'housekeeping', name: 'HouseKeeping', port: 5178, accent: '#f59e0b' },
-  { appId: 'shadowlibrary', name: 'ShadowLibrary', port: 5179, accent: '#6366f1' },
-  { appId: 'redroom', name: 'RedRoom', port: 5180, accent: '#ef4444' },
-  { appId: 'greenroom', name: 'GreenRoom', port: 8420, accent: '#10b981' },
-  { appId: 'streamengine', name: 'StreamEngine', port: 8430, accent: '#ec4899' },
-  { appId: 'legacy-sister-app', name: 'legacy-sister-app', port: 8460, accent: '#a855f7' },
 ]);

@@ -107,7 +107,7 @@ public sealed class FleetPowerCoordinator
     {
         DateTime nowUtc = nowUtcOverride ?? DateTime.UtcNow;
         MotherSettings cfg = _settings.GetCurrent();
-        _inhibitor.UpdateInhibition(cfg.SleepInhibitDuringActiveLock && liveLockCount > 0);
+        _inhibitor.UpdateInhibition(cfg.ShouldInhibitSleepDuringActiveLock && liveLockCount > 0);
 
         int active = apps.Sum(a => a.ActiveJobs);
         int queued = apps.Sum(a => a.QueuedJobs);

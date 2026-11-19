@@ -14,9 +14,8 @@
   <ItemGroup>
     <Reference Include="Foundation.Launcher">
       <HintPath>..\lib\Foundation.Launcher.dll</HintPath>
-      <Private>false</Private>
+      <Private>true</Private>
     </Reference>
-    <EmbeddedResource Include="..\lib\Foundation.Launcher.dll" LogicalName="Foundation.Launcher.dll" />
   </ItemGroup>
 
 </Project>

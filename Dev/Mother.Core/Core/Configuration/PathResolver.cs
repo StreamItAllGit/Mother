@@ -9,7 +9,6 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using Foundation.Core;
-using Microsoft.Win32;
 
 namespace Mother.Core.Configuration;
 
@@ -30,6 +29,13 @@ public sealed class PathResolver
 {
     public AppEnvironment AppEnv { get; }
     public MotherLaunchOptions Options { get; }
+    public SandboxResolution Sandbox => AppEnv.Sandbox;
+    public bool IsIsolatedTestProcess { get; }
+    public bool IsSandboxActive => AppEnv.Sandbox.IsSandboxActive && !IsIsolatedTestProcess;
+    public bool IsStage1Isolated { get; }
+    public bool ShouldSuppressHostMutations => IsStage1Isolated;
+    public bool ShouldSuppressLiveHostMutations => IsStage1Isolated || IsSandboxActive;
+    public IPlatformRegistry Registry { get; }
     public string BaseDirectory => AppEnv.BaseDirectory;
     public string DataDirectory => AppEnv.DataDirectory;
     public string ConfigFilePath => AppEnv.ConfigFilePath;
@@ -45,7 +51,21 @@ public sealed class PathResolver
     public PathResolver(IReadOnlyList<string>? args = null, string? baseDirectoryOverride = null)
     {
         IReadOnlyList<string> cli = args ?? Array.Empty<string>();
-        AppEnv = new AppEnvironment("mother", cli, baseDirectoryOverride, "settings.json");
+        IsIsolatedTestProcess = string.Equals(Environment.GetEnvironmentVariable("APP_ISOLATED_TEST"), "1", StringComparison.OrdinalIgnoreCase);
+        string? rawDataDirArg = ReadFlagValue(cli, "--data-dir")
+            ?? Environment.GetEnvironmentVariable("MOTHER_DATA_DIR")
+            ?? Environment.GetEnvironmentVariable("DATA_DIR")
+            ?? Environment.GetEnvironmentVariable("APP_HOME");
+        SandboxResolution sandboxOverride = SandboxEnvironmentSeam.ResolveCurrent();
+        SandboxResolution effectiveSandbox = (sandboxOverride.IsSandboxActive && !IsIsolatedTestProcess)
+            ? sandboxOverride
+            : SandboxResolution.Inactive;
+        AppEnv = new AppEnvironment(
+            "mother",
+            cli,
+            baseDirectoryOverride,
+            Path.Combine("config", "settings.json"),
+            effectiveSandbox);
 
         string? suiteTab = ReadFlagValue(cli, "--suite-tab");
         string? windowApp = ReadFlagValue(cli, "--window");
@@ -56,13 +76,15 @@ public sealed class PathResolver
         bool showHelp = HasFlag(cli, "--help") || HasFlag(cli, "-h") || HasFlag(cli, "/?");
         bool showVersion = HasFlag(cli, "--version") || HasFlag(cli, "-v");
 
-        IsIsolatedOverride =
-            string.Equals(Environment.GetEnvironmentVariable("APP_ISOLATED_TEST"), "1", StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(
-                Path.GetFullPath(DataDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-                Path.GetFullPath(Path.Combine(BaseDirectory, "data")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-                StringComparison.OrdinalIgnoreCase);
+        bool hasCustomNonDefaultData = !string.IsNullOrWhiteSpace(rawDataDirArg) && !string.Equals(
+            Path.GetFullPath(DataDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(Path.Combine(BaseDirectory, "data")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+
+        IsStage1Isolated = IsIsolatedTestProcess || (!IsSandboxActive && hasCustomNonDefaultData);
+        IsIsolatedOverride = IsStage1Isolated;
         ContainmentRoot = ResolveIsolatedContainmentRoot(DataDirectory) ?? DataDirectory;
+        Registry = PlatformRegistryFactory.CreateDefault(effectiveSandbox, ShouldSuppressHostMutations);
 
         Options = new MotherLaunchOptions(
             SuiteTabAppId: suiteTab,
@@ -95,6 +117,16 @@ public sealed class PathResolver
             return AppEnvironment.AssertPathContained(candidatePath, ContainmentRoot);
         }
         return Path.GetFullPath(candidatePath);
+    }
+
+    public string AssertContainedIfIsolatedOrSandboxed(string candidatePath)
+    {
+        string resolved = AssertContainedIfIsolated(candidatePath);
+        if (IsSandboxActive)
+        {
+            return SandboxEnvironmentSeam.AssertSandboxPathIfActive(resolved, Sandbox);
+        }
+        return resolved;
     }
 
     public static string? ResolveIsolatedContainmentRoot(string dataDirectory)
@@ -138,7 +170,7 @@ public sealed class PathResolver
                 }
             }
         }
-        return "0.2.0-hf.1";
+        return MotherBuildConstants.AppVersionFallback;
     }
 
     private string ResolveProgramsRoot(string? explicitOverride)
@@ -146,7 +178,7 @@ public sealed class PathResolver
         if (!string.IsNullOrWhiteSpace(explicitOverride))
         {
             string full = Path.GetFullPath(explicitOverride.Trim());
-            return AssertContainedIfIsolated(full);
+            return AssertContainedIfIsolatedOrSandboxed(full);
         }
 
         if (IsIsolatedOverride)
@@ -163,28 +195,24 @@ public sealed class PathResolver
                 string.Equals(Path.GetFileName(fullHome), "Mother", StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(Path.GetFileName(homeParent), "Mother", StringComparison.OrdinalIgnoreCase))
             {
-                return homeParent;
+                return AssertContainedIfIsolatedOrSandboxed(homeParent);
             }
-            return fullHome;
+            return AssertContainedIfIsolatedOrSandboxed(fullHome);
         }
 
-        if (OperatingSystem.IsWindows())
+        string? suiteDir = Registry.GetValue(PlatformRegistryHive.CurrentUser, @"Software\StreamItAll\Mother", "SuiteInstallDir")?.AsString();
+        if (!string.IsNullOrWhiteSpace(suiteDir))
         {
-            using RegistryKey? key = Registry.CurrentUser.OpenSubKey(@"Software\StreamItAll\Mother");
-            string? suiteDir = key?.GetValue("SuiteInstallDir") as string;
-            if (!string.IsNullOrWhiteSpace(suiteDir))
-            {
-                return Path.GetFullPath(suiteDir.Trim());
-            }
+            return AssertContainedIfIsolatedOrSandboxed(Path.GetFullPath(suiteDir.Trim()));
+        }
 
-            string? installDir = key?.GetValue("InstallDir") as string;
-            if (!string.IsNullOrWhiteSpace(installDir))
+        string? installDir = Registry.GetValue(PlatformRegistryHive.CurrentUser, @"Software\StreamItAll\Mother", "InstallDir")?.AsString();
+        if (!string.IsNullOrWhiteSpace(installDir))
+        {
+            DirectoryInfo? parent = Directory.GetParent(Path.GetFullPath(installDir.Trim()));
+            if (parent is not null)
             {
-                DirectoryInfo? parent = Directory.GetParent(Path.GetFullPath(installDir.Trim()));
-                if (parent is not null)
-                {
-                    return parent.FullName;
-                }
+                return AssertContainedIfIsolatedOrSandboxed(parent.FullName);
             }
         }
 
@@ -194,11 +222,12 @@ public sealed class PathResolver
             string.Equals(baseParent.Name, "Mother", StringComparison.OrdinalIgnoreCase) &&
             string.Equals(baseParent.Parent.Name, "Mother", StringComparison.OrdinalIgnoreCase))
         {
-            return baseParent.Parent.FullName;
+            return AssertContainedIfIsolatedOrSandboxed(baseParent.Parent.FullName);
         }
 
-        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.GetFullPath(Path.Combine(localAppData, "Programs", "StreamItAll", "Mother"));
+        SandboxResolution effectiveSandbox = IsSandboxActive ? Sandbox : SandboxResolution.Inactive;
+        string localPrograms = KnownFolderPaths.ResolveLocalProgramsDirectory(effectiveSandbox);
+        return Path.GetFullPath(Path.Combine(localPrograms, "StreamItAll", "Mother"));
     }
 
     private static string ResolveMigrationsDirectory(string baseDir)
