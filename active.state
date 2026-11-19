@@ -15,10 +15,10 @@
   "productionSubpath": "StreamItAll\\Mother\\Mother",
   "supersededBy": null,
   "tasklistDetailLevel": 3,
-  "openTaskCount": 19,
-  "completedTaskCount": 12,
+  "openTaskCount": 11,
+  "completedTaskCount": 20,
   "openReportCount": 0,
-  "isPublicRepo": false,
+  "isPublicRepo": true,
   "requireHumanReviewBeforePush": true,
   "discordPost": {
     "isEnabled": true,
@@ -37,6 +37,6 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "Mother v0.3.0 Public Beta baseline (Tier A 4-folder layout, Foundation v0.5.1). Universal pluggable core with 0-app empty state, Doctor pass, 503 NO_HTTP_ENDPOINT guard, ISO/IEC 18004 QR SVG, settings v2 migration, 3-mode sandbox containment (ExitCode 3), Debug-only automation (ExitCode 2 in Release), self-contained win-x64 Setup + Portable ZIP, and clean-room docs + SECURITY.md + CONTRIBUTING.md synced. Next milestone: v0.4.0 Zero-Update App Onboarding; awaiting T7 history scrub and human review gate prior to public beta push.",
-  "updatedAtUtc": "2026-11-19T09:44:00Z"
+  "notes": "Mother v0.3.0 Public Beta shipped across GitHub Releases, Google Drive, and Discord (Tier A 4-folder layout, Foundation v0.5.1). Universal pluggable core with 0-app empty state, Doctor pass, 503 NO_HTTP_ENDPOINT guard, ISO/IEC 18004 QR SVG, settings v2 migration, 3-mode sandbox containment (ExitCode 3), Debug-only automation (ExitCode 2 in Release), self-contained win-x64 Setup + Portable ZIP, clean-room docs + SECURITY.md + CONTRIBUTING.md, and verified 0/0 scrubbed Git history. Next milestone: v0.4.0 Zero-Update App Onboarding.",
+  "updatedAtUtc": "2026-11-19T09:58:00Z"
 }
