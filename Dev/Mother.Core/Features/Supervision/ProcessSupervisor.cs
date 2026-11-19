@@ -1,11 +1,12 @@
 // @module: Mother.Core.Features.Supervision.ProcessSupervisor
 // @purpose: Supervises child sister-app workers with JobObjectGuard, 3x/60s crash-loop circuit breaker, and graceful 5s drain.
-// @depends-on: System, System.Collections.Concurrent, System.Collections.Generic, System.Diagnostics, System.IO, System.Linq, System.Threading, System.Threading.Tasks, Foundation.Core, Mother.Core.Configuration, Mother.Core.Contracts, Mother.Core.Diagnostics
+// @depends-on: System, System.Collections.Concurrent, System.Collections.Generic, System.ComponentModel, System.Diagnostics, System.IO, System.Linq, System.Threading, System.Threading.Tasks, Foundation.Core, Mother.Core.Configuration, Mother.Core.Contracts, Mother.Core.Diagnostics
 // @exports: ProcessSupervisor
 
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -217,10 +218,24 @@ public sealed class ProcessSupervisor : IDisposable
             if (!proc.CloseMainWindow()) proc.Kill(entireProcessTree: true);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeoutCts.CancelAfter(Math.Clamp(gracefulTimeoutMs, 500, 15000));
-            try { await proc.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false); }
-            catch { if (!proc.HasExited) proc.Kill(entireProcessTree: true); }
+            try
+            {
+                await proc.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Graceful close timeout or caller cancellation elapsed; terminate process tree cleanly.
+                if (!proc.HasExited)
+                {
+                    proc.Kill(entireProcessTree: true);
+                }
+            }
         }
-        catch { /* ignore process exit race */ }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or NotSupportedException or IOException)
+        {
+            // Child process may have already exited during teardown race.
+            _diag.Log("INFO", appId, "Supervision", $"Process stop race resolved for '{appId}': {ex.Message}");
+        }
 
         c.Process = null;
         c.IsOnline = false;

@@ -1,10 +1,11 @@
 // @module: Mother.Core.Features.Supervision.HealthPollerService
 // @purpose: Steady-state background health/status poller for registered sister apps with SQLite fleet_health_events logging.
-// @depends-on: System, System.Collections.Generic, System.Net.Http, System.Text.Json, System.Threading, System.Threading.Tasks, Mother.Core.Configuration, Mother.Core.Contracts, Mother.Core.Diagnostics, Mother.Core.Persistence
+// @depends-on: System, System.Collections.Generic, System.Diagnostics, System.Net.Http, System.Text.Json, System.Threading, System.Threading.Tasks, Mother.Core.Configuration, Mother.Core.Contracts, Mother.Core.Diagnostics, Mother.Core.Persistence
 // @exports: HealthPollerService
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
@@ -101,6 +102,10 @@ public sealed class HealthPollerService
             if (doc.RootElement.TryGetProperty("activeJobs", out JsonElement a) && a.TryGetInt32(out int av)) activeJobs = av;
             if (doc.RootElement.TryGetProperty("queuedJobs", out JsonElement q) && q.TryGetInt32(out int qv)) queuedJobs = qv;
         }
-        catch { /* non-JSON health payload is valid */ }
+        catch (JsonException ex)
+        {
+            // Non-JSON plain-text health endpoints are valid; default job counters to zero.
+            Trace.TraceInformation($"Non-JSON health payload observed ({ex.Message}); defaulting job counts to 0.");
+        }
     }
 }

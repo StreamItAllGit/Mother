@@ -1,11 +1,14 @@
 // @module: Mother.Core.Features.Coexistence.SecretVaultInspector
 // @purpose: Read-only DPAPI vault key metadata inspector (exposes key names, file sizes, timestamps only; never decrypts secret plaintext).
-// @depends-on: System, System.Collections.Generic, System.IO, Foundation.Core, Mother.Core.Configuration, Mother.Core.Contracts
+// @depends-on: System, System.Collections.Generic, System.Diagnostics, System.IO, System.Security.Cryptography, System.Text.Json, Foundation.Core, Mother.Core.Configuration, Mother.Core.Contracts
 // @exports: SecretVaultInspector
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text.Json;
 using Foundation.Core;
 using Mother.Core.Configuration;
 using Mother.Core.Contracts;
@@ -31,7 +34,7 @@ public sealed class SecretVaultInspector
             if (string.IsNullOrWhiteSpace(app.SecretVaultPath)) continue;
             try
             {
-                string fullVault = _paths.AssertContainedIfIsolated(app.SecretVaultPath);
+                string fullVault = _paths.AssertContainedIfIsolatedOrSandboxed(app.SecretVaultPath);
                 if (File.Exists(fullVault))
                 {
                     string? dir = Path.GetDirectoryName(fullVault);
@@ -42,9 +45,10 @@ public sealed class SecretVaultInspector
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or NotSupportedException or IOException or UnauthorizedAccessException)
             {
-                /* skip out-of-root paths in isolated mode */
+                // Skip out-of-root or inaccessible vault paths under isolated or Stage 2 sandbox containment.
+                Trace.TraceWarning($"Skipped secret vault path for '{app.AppId}': {ex.Message}");
             }
         }
 
@@ -76,9 +80,10 @@ public sealed class SecretVaultInspector
                 results.Add(new SecretKeyMetadataDto(vaultPath, appId, key, info.Length, modified));
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException or JsonException)
         {
-            /* fail closed without exposing raw cipher/errors */
+            // Fail closed without exposing raw cipher contents or secret details.
+            Trace.TraceWarning($"Secret vault inspection failed closed for '{appId}': {ex.GetType().Name}");
         }
     }
 }

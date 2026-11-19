@@ -104,6 +104,18 @@ public sealed class PathResolver
         BackupsDirectory = Path.Combine(DataDirectory, "backups");
         MigrationsDirectory = ResolveMigrationsDirectory(BaseDirectory);
 
+        if (IsSandboxActive)
+        {
+            // Seal all writable runtime directories inside the 4-drive sandbox before creating folders.
+            SandboxEnvironmentSeam.AssertSandboxPathIfActive(DataDirectory, Sandbox);
+            SandboxEnvironmentSeam.AssertSandboxPathIfActive(ConfigFilePath, Sandbox);
+            SandboxEnvironmentSeam.AssertSandboxPathIfActive(LogDirectory, Sandbox);
+            SandboxEnvironmentSeam.AssertSandboxPathIfActive(ProgramsRoot, Sandbox);
+            SandboxEnvironmentSeam.AssertSandboxPathIfActive(ManifestsDirectory, Sandbox);
+            SandboxEnvironmentSeam.AssertSandboxPathIfActive(DatabasePath, Sandbox);
+            SandboxEnvironmentSeam.AssertSandboxPathIfActive(BackupsDirectory, Sandbox);
+        }
+
         Directory.CreateDirectory(DataDirectory);
         Directory.CreateDirectory(LogDirectory);
         Directory.CreateDirectory(ManifestsDirectory);
@@ -220,14 +232,15 @@ public sealed class PathResolver
         if (baseParent is not null &&
             baseParent.Parent is not null &&
             string.Equals(baseParent.Name, "Mother", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(baseParent.Parent.Name, "Mother", StringComparison.OrdinalIgnoreCase))
+            string.Equals(baseParent.Parent.Name, "Mother", StringComparison.OrdinalIgnoreCase) &&
+            (!IsSandboxActive || SandboxEnvironmentSeam.IsPathWithinSandbox(baseParent.Parent.FullName, Sandbox)))
         {
             return AssertContainedIfIsolatedOrSandboxed(baseParent.Parent.FullName);
         }
 
         SandboxResolution effectiveSandbox = IsSandboxActive ? Sandbox : SandboxResolution.Inactive;
         string localPrograms = KnownFolderPaths.ResolveLocalProgramsDirectory(effectiveSandbox);
-        return Path.GetFullPath(Path.Combine(localPrograms, "StreamItAll", "Mother"));
+        return AssertContainedIfIsolatedOrSandboxed(Path.Combine(localPrograms, "StreamItAll", "Mother"));
     }
 
     private static string ResolveMigrationsDirectory(string baseDir)

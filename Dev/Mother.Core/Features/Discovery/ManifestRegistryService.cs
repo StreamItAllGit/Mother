@@ -1,15 +1,16 @@
 // @module: Mother.Core.Features.Discovery.ManifestRegistryService
-// @purpose: Discovers v1/v2 sister-app manifests across manifests\ and ProgramsRoot, applies settings residency overrides, and supports hot reload.
-// @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Text, Mother.Core.Configuration, Mother.Core.Contracts, Mother.Core.Diagnostics
+// @purpose: Discovers v1/v2 sister-app manifests by strict precedence (TryAdd), applies settings residency overrides, and enforces Stage 2 containment.
+// @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Security, System.Text, System.Text.Json, Foundation.Core, Mother.Core.Configuration, Mother.Core.Contracts, Mother.Core.Diagnostics
 // @exports: ManifestRegistryService
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Win32;
+using Foundation.Core;
 using Mother.Core.Configuration;
 using Mother.Core.Contracts;
 using Mother.Core.Diagnostics;
@@ -18,6 +19,8 @@ namespace Mother.Core.Features.Discovery;
 
 public sealed class ManifestRegistryService
 {
+    private const string RegistryAppsSubKey = @"Software\StreamItAll\Mother\Apps";
+
     private readonly object _sync = new();
     private readonly PathResolver _paths;
     private readonly SettingsStore _settings;
@@ -73,9 +76,10 @@ public sealed class ManifestRegistryService
                     parsed = parsed with { ResidencyMode = overrideMode };
                 }
 
-                discovered[parsed.AppId] = parsed;
+                // First-wins precedence: data\manifests > ProgramsRoot > Registry > CustomManifestRoots > legacy <Drive>:\Programs.
+                discovered.TryAdd(parsed.AppId, parsed);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
             {
                 _diag.Log("WARN", "mother", "Discovery", $"Failed to parse manifest '{file}': {ex.Message}");
             }
@@ -104,9 +108,14 @@ public sealed class ManifestRegistryService
         };
         foreach (string p in candidates)
         {
-            if (File.Exists(p))
+            if (!File.Exists(p)) continue;
+            try
             {
-                try { return JsonDocument.Parse(File.ReadAllText(p, Encoding.UTF8)); } catch { }
+                return JsonDocument.Parse(File.ReadAllText(p, Encoding.UTF8));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            {
+                _diag.Log("WARN", "mother", "Discovery", $"Failed reading suite manifest '{p}': {ex.Message}");
             }
         }
         return null;
@@ -116,55 +125,210 @@ public sealed class ManifestRegistryService
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // 1. data\manifests\
         if (Directory.Exists(_paths.ManifestsDirectory))
         {
-            foreach (string f in Directory.EnumerateFiles(_paths.ManifestsDirectory, "*.json", SearchOption.TopDirectoryOnly))
+            foreach (string f in SafeEnumerateFiles(_paths.ManifestsDirectory, "*.json"))
             {
                 if (Path.GetFileName(f).StartsWith(".", StringComparison.Ordinal)) continue;
                 if (seen.Add(Path.GetFullPath(f))) yield return f;
             }
         }
 
-        var peerDirs = new List<string>();
-        var scanRoots = new List<string>();
-        if (Directory.Exists(_paths.ProgramsRoot)) scanRoots.Add(_paths.ProgramsRoot);
-
-        foreach (string custom in cfg.CustomManifestRoots)
+        // 2. ProgramsRoot umbrella
+        if (Directory.Exists(_paths.ProgramsRoot))
         {
-            if (string.IsNullOrWhiteSpace(custom)) continue;
-            try
-            {
-                string resolved = _paths.AssertContainedIfIsolated(custom.Trim());
-                if (Directory.Exists(resolved)) scanRoots.Add(resolved);
-            }
-            catch
-            {
-                _diag.Log("WARN", "mother", "Discovery", $"Skipped out-of-root customManifestRoot '{custom}'.");
-            }
-        }
-
-        if (!_paths.IsIsolatedOverride)
-        {
-            AddHostAppDiscoveryPaths(peerDirs, scanRoots);
-        }
-
-        foreach (string dir in peerDirs)
-        {
-            foreach (string candidate in YieldManifestCandidates(dir))
-            {
-                if (seen.Add(Path.GetFullPath(candidate))) yield return candidate;
-            }
-        }
-
-        foreach (string root in scanRoots)
-        {
-            foreach (string dir in Directory.EnumerateDirectories(root))
+            foreach (string dir in SafeEnumerateDirectories(_paths.ProgramsRoot))
             {
                 foreach (string candidate in YieldManifestCandidates(dir))
                 {
                     if (seen.Add(Path.GetFullPath(candidate))) yield return candidate;
                 }
             }
+        }
+
+        // 3. _paths.Registry (PlatformRegistryHive.CurrentUser, Software\StreamItAll\Mother\Apps)
+        foreach (string candidate in EnumerateRegistryManifests())
+        {
+            if (seen.Add(Path.GetFullPath(candidate))) yield return candidate;
+        }
+
+        // 4. CustomManifestRoots
+        foreach (string custom in cfg.CustomManifestRoots)
+        {
+            if (string.IsNullOrWhiteSpace(custom)) continue;
+            string resolved;
+            try
+            {
+                resolved = _paths.AssertContainedIfIsolatedOrSandboxed(custom.Trim());
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or NotSupportedException)
+            {
+                _diag.Log("WARN", "mother", "Discovery", $"Skipped out-of-root customManifestRoot '{custom}': {ex.Message}");
+                continue;
+            }
+
+            if (!Directory.Exists(resolved)) continue;
+            foreach (string candidate in YieldManifestCandidates(resolved))
+            {
+                if (seen.Add(Path.GetFullPath(candidate))) yield return candidate;
+            }
+            foreach (string dir in SafeEnumerateDirectories(resolved))
+            {
+                foreach (string candidate in YieldManifestCandidates(dir))
+                {
+                    if (seen.Add(Path.GetFullPath(candidate))) yield return candidate;
+                }
+            }
+        }
+
+        // 5. Legacy <Drive>:\Programs (live drives gated on !ShouldSuppressLiveHostMutations)
+        foreach (string legacyRoot in EnumerateLegacyProgramsRoots())
+        {
+            foreach (string dir in SafeEnumerateDirectories(legacyRoot))
+            {
+                foreach (string candidate in YieldManifestCandidates(dir))
+                {
+                    if (seen.Add(Path.GetFullPath(candidate))) yield return candidate;
+                }
+            }
+        }
+    }
+
+    private IEnumerable<string> EnumerateRegistryManifests()
+    {
+        IReadOnlyList<string> subKeys;
+        try
+        {
+            subKeys = _paths.Registry.GetSubKeyNames(PlatformRegistryHive.CurrentUser, RegistryAppsSubKey);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or InvalidOperationException or TimeoutException)
+        {
+            _diag.Log("WARN", "mother", "Discovery", $"Skipped registry app discovery: {ex.Message}");
+            yield break;
+        }
+
+        foreach (string sub in subKeys)
+        {
+            string? dir;
+            try
+            {
+                dir = _paths.Registry.GetValue(PlatformRegistryHive.CurrentUser, $@"{RegistryAppsSubKey}\{sub}", "InstallDir")?.AsString();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or InvalidOperationException or TimeoutException)
+            {
+                _diag.Log("WARN", "mother", "Discovery", $"Failed reading registry InstallDir for '{sub}': {ex.Message}");
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(dir)) continue;
+            string resolved;
+            try
+            {
+                resolved = _paths.AssertContainedIfIsolatedOrSandboxed(dir.Trim());
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or NotSupportedException)
+            {
+                _diag.Log("WARN", "mother", "Discovery", $"Skipped out-of-root registry InstallDir for '{sub}': {ex.Message}");
+                continue;
+            }
+
+            if (!Directory.Exists(resolved)) continue;
+            foreach (string candidate in YieldManifestCandidates(resolved))
+            {
+                yield return candidate;
+            }
+        }
+    }
+
+    private IEnumerable<string> EnumerateLegacyProgramsRoots()
+    {
+        if (_paths.ShouldSuppressLiveHostMutations)
+        {
+            if (_paths.IsSandboxActive && !string.IsNullOrWhiteSpace(_paths.Sandbox.StorageDriveRoot))
+            {
+                string? sandboxPrograms = TryGetContainedDirectory(Path.Combine(_paths.Sandbox.StorageDriveRoot, "Programs"));
+                if (sandboxPrograms is not null)
+                {
+                    yield return sandboxPrograms;
+                }
+            }
+            yield break;
+        }
+
+        string sysDir = KnownFolderPaths.GetFolderPath(Environment.SpecialFolder.System, SandboxResolution.Inactive);
+        string? sysRoot = string.IsNullOrWhiteSpace(sysDir) ? null : Path.GetPathRoot(sysDir);
+        foreach (DriveInfo drive in DriveInfo.GetDrives())
+        {
+            string? legacyPrograms = TryResolveHostDrivePrograms(drive, sysRoot);
+            if (legacyPrograms is not null)
+            {
+                yield return legacyPrograms;
+            }
+        }
+    }
+
+    private string? TryGetContainedDirectory(string candidatePath)
+    {
+        try
+        {
+            string resolved = _paths.AssertContainedIfIsolatedOrSandboxed(candidatePath);
+            return Directory.Exists(resolved) ? resolved : null;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or NotSupportedException or IOException)
+        {
+            _diag.Log("WARN", "mother", "Discovery", $"Skipped non-contained sandbox Programs root '{candidatePath}': {ex.Message}");
+            return null;
+        }
+    }
+
+    private string? TryResolveHostDrivePrograms(DriveInfo drive, string? sysRoot)
+    {
+        try
+        {
+            if (!drive.IsReady || drive.DriveType != DriveType.Fixed) return null;
+            if (!string.IsNullOrWhiteSpace(sysRoot) &&
+                string.Equals(drive.RootDirectory.FullName, sysRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            string legacyPrograms = Path.Combine(drive.RootDirectory.FullName, "Programs");
+            return Directory.Exists(legacyPrograms) ? legacyPrograms : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DriveNotFoundException)
+        {
+            _diag.Log("WARN", "mother", "Discovery", $"Skipped inaccessible drive '{drive.Name}': {ex.Message}");
+            return null;
+        }
+    }
+
+    private IEnumerable<string> SafeEnumerateFiles(string directory, string pattern)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly)
+                .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
+        {
+            _diag.Log("WARN", "mother", "Discovery", $"Skipped unreadable manifest directory '{directory}': {ex.Message}");
+            return Array.Empty<string>();
+        }
+    }
+
+    private IEnumerable<string> SafeEnumerateDirectories(string root)
+    {
+        try
+        {
+            return Directory.EnumerateDirectories(root)
+                .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
+        {
+            _diag.Log("WARN", "mother", "Discovery", $"Skipped unreadable scan root '{root}': {ex.Message}");
+            return Array.Empty<string>();
         }
     }
 
@@ -180,35 +344,6 @@ public sealed class ManifestRegistryService
         foreach (string candidate in names)
         {
             if (File.Exists(candidate)) yield return candidate;
-        }
-    }
-
-    private static void AddHostAppDiscoveryPaths(List<string> peerDirs, List<string> scanRoots)
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            using RegistryKey? appsKey = Registry.CurrentUser.OpenSubKey(@"Software\StreamItAll\Mother\Apps");
-            if (appsKey is not null)
-            {
-                foreach (string sub in appsKey.GetSubKeyNames())
-                {
-                    using RegistryKey? appKey = appsKey.OpenSubKey(sub);
-                    string? dir = appKey?.GetValue("InstallDir") as string;
-                    if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
-                    {
-                        peerDirs.Add(Path.GetFullPath(dir));
-                    }
-                }
-            }
-        }
-
-        string? sysRoot = Path.GetPathRoot(Environment.SystemDirectory);
-        foreach (DriveInfo drive in DriveInfo.GetDrives())
-        {
-            if (!drive.IsReady || drive.DriveType != DriveType.Fixed) continue;
-            if (string.Equals(drive.RootDirectory.FullName, sysRoot, StringComparison.OrdinalIgnoreCase)) continue;
-            string legacyPrograms = Path.Combine(drive.RootDirectory.FullName, "Programs");
-            if (Directory.Exists(legacyPrograms)) scanRoots.Add(legacyPrograms);
         }
     }
 }

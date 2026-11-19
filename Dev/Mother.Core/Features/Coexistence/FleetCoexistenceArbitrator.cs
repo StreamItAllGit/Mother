@@ -121,29 +121,34 @@ public sealed class FleetCoexistenceArbitrator
         // 3. Offline .coexistence.json root drift inspection
         foreach (string root in sharedRoots)
         {
-            string coexPath = Path.Combine(root, ".coexistence.json");
-            if (!File.Exists(coexPath)) continue;
             try
             {
+                string safeRoot = _paths.AssertContainedIfIsolatedOrSandboxed(root);
+                string coexPath = Path.Combine(safeRoot, ".coexistence.json");
+                if (!File.Exists(coexPath)) continue;
+
                 using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(coexPath, Encoding.UTF8));
                 if (doc.RootElement.TryGetProperty("settingsDrift", out JsonElement drift) &&
                     drift.ValueKind == JsonValueKind.True)
                 {
+                    IReadOnlyList<string> claimers = ResolveRootClaimerAppIds(safeRoot, apps, doc.RootElement);
+                    string primaryAppId = claimers.Count > 0 ? claimers[0] : "mother";
+                    string secondaryAppId = claimers.Count > 1 ? claimers[1] : (claimers.Count == 1 ? "mother" : "suite");
                     conflicts.Add(new FleetConflictDto(
-                        ConflictId: $"drift-{Math.Abs(root.GetHashCode())}",
+                        ConflictId: $"drift-{unchecked((uint)safeRoot.GetHashCode())}",
                         Kind: "SettingsDrift",
                         Severity: "low",
-                        PrimaryAppId: "shadowlibrary",
-                        SecondaryAppId: "housekeeping",
-                        ResourceKey: root,
-                        Summary: $"Shared root '{root}' has unaligned .coexistence.json parity flags.",
+                        PrimaryAppId: primaryAppId,
+                        SecondaryAppId: secondaryAppId,
+                        ResourceKey: safeRoot,
+                        Summary: $"Shared root '{safeRoot}' has unaligned .coexistence.json parity flags.",
                         RecommendedPreset: "zero-rewrite-parity",
                         DetectedAtUtc: nowUtc));
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException)
             {
-                /* ignore malformed coexistence file */
+                _diag.Log("WARN", "mother", "Coexistence", $"Skipped coexistence inspection for '{root}': {ex.Message}");
             }
         }
 
@@ -188,26 +193,32 @@ public sealed class FleetCoexistenceArbitrator
     {
         var updated = new List<string>();
         string nowUtc = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+        string[] normalizedIds = (targetAppIds ?? Array.Empty<string>())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
         foreach (string root in sharedRoots)
         {
             try
             {
-                string safeRoot = _paths.AssertContainedIfIsolated(root);
+                string safeRoot = _paths.AssertContainedIfIsolatedOrSandboxed(root);
                 Directory.CreateDirectory(safeRoot);
                 string coexPath = Path.Combine(safeRoot, ".coexistence.json");
                 var payload = new
                 {
-                    schemaVersion = 1,
+                    schemaVersion = 2,
                     rootPath = safeRoot,
                     updatedAtUtc = nowUtc,
                     appliedPreset = string.IsNullOrWhiteSpace(presetId) ? "zero-rewrite-parity" : presetId,
                     settingsDrift = false,
-                    targetAppIds = targetAppIds ?? Array.Empty<string>()
+                    targetAppIds = normalizedIds
                 };
                 File.WriteAllText(coexPath, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
                 updated.Add(safeRoot);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
             {
                 _diag.Log("WARN", "mother", "Coexistence", $"Skipped coexistence write for '{root}': {ex.Message}");
             }
@@ -215,5 +226,57 @@ public sealed class FleetCoexistenceArbitrator
 
         _diag.Log("INFO", "mother", "Coexistence", $"Applied preset '{presetId}' across {updated.Count} shared root(s).");
         return updated;
+    }
+
+    private static IReadOnlyList<string> ResolveRootClaimerAppIds(
+        string safeRoot,
+        IReadOnlyList<SisterAppRuntimeDto> apps,
+        JsonElement rootElement)
+    {
+        var claimers = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (SisterAppRuntimeDto app in apps)
+        {
+            if (app.SharedMounts.Any(m => PathsEqualNormalized(m, safeRoot)) && seen.Add(app.AppId))
+            {
+                claimers.Add(app.AppId);
+            }
+        }
+
+        if (rootElement.TryGetProperty("targetAppIds", out JsonElement targetIds) &&
+            targetIds.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement item in targetIds.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String) continue;
+                string? appId = item.GetString();
+                if (!string.IsNullOrWhiteSpace(appId))
+                {
+                    string trimmed = appId.Trim().ToLowerInvariant();
+                    if (seen.Add(trimmed))
+                    {
+                        claimers.Add(trimmed);
+                    }
+                }
+            }
+        }
+
+        return claimers;
+    }
+
+    private static bool PathsEqualNormalized(string candidate, string safeRoot)
+    {
+        if (string.IsNullOrWhiteSpace(candidate)) return false;
+        try
+        {
+            string normCandidate = Path.GetFullPath(candidate.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string normRoot = Path.GetFullPath(safeRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return string.Equals(normCandidate, normRoot, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
     }
 }

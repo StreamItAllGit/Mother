@@ -1,9 +1,10 @@
 // @module: Mother.Core.Ipc.SupervisorIpc
 // @purpose: Single-instance + Supervisor active mutexes and named-pipe command bridge for focusing or switching tabs.
-// @depends-on: System, System.IO, System.IO.Pipes, System.Text, System.Threading, System.Threading.Tasks
+// @depends-on: System, System.Diagnostics, System.IO, System.IO.Pipes, System.Text, System.Threading, System.Threading.Tasks
 // @exports: SupervisorIpc
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
@@ -31,12 +32,13 @@ public sealed class SupervisorIpc : IDisposable
     public SupervisorIpc(PathResolver paths)
     {
         ArgumentNullException.ThrowIfNull(paths);
-        if (paths.IsIsolatedOverride)
+        if (paths.ShouldSuppressLiveHostMutations)
         {
+            string scope = paths.IsSandboxActive ? "Sandbox" : "Isolated";
             string hash = paths.ComputeIsolatedMutexHash();
-            SingleInstanceMutexName = $@"Local\Mother.Isolated.{hash}";
-            SupervisorActiveMutexName = $@"Local\Mother.Isolated.Supervisor.{hash}";
-            _pipeName = $"Mother.Isolated.Pipe.{hash}";
+            SingleInstanceMutexName = $@"Local\Mother.{scope}.{hash}";
+            SupervisorActiveMutexName = $@"Local\Mother.{scope}.Supervisor.{hash}";
+            _pipeName = $"Mother.{scope}.Pipe.{hash}";
         }
         else
         {
@@ -73,8 +75,10 @@ public sealed class SupervisorIpc : IDisposable
             client.Flush();
             return true;
         }
-        catch
+        catch (Exception ex) when (ex is IOException or TimeoutException or UnauthorizedAccessException or ObjectDisposedException)
         {
+            // Primary instance pipe may have closed or timed out before accepting command.
+            Trace.TraceWarning($"IPC command send to '{_pipeName}' failed: {ex.Message}");
             return false;
         }
     }
@@ -104,8 +108,10 @@ public sealed class SupervisorIpc : IDisposable
             {
                 break;
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
             {
+                // Transient broken pipe or client disconnect; back off briefly before recreating listener.
+                Trace.TraceWarning($"IPC listener error on '{_pipeName}': {ex.Message}");
                 await Task.Delay(250, ct).ConfigureAwait(false);
             }
         }
@@ -119,13 +125,40 @@ public sealed class SupervisorIpc : IDisposable
         }
         _disposed = true;
         _cts.Cancel();
-        try { _listenerTask?.Wait(500); } catch { }
+        try
+        {
+            _listenerTask?.Wait(500);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected cancellation when shutting down IPC pipe listener.
+        }
+        catch (AggregateException ex)
+        {
+            Trace.TraceWarning($"IPC listener shutdown warning: {ex.GetBaseException().Message}");
+        }
         _cts.Dispose();
 
         if (IsPrimaryInstance)
         {
-            try { _supervisorActiveMutex?.ReleaseMutex(); } catch { }
-            try { _singleInstanceMutex.ReleaseMutex(); } catch { }
+            try
+            {
+                _supervisorActiveMutex?.ReleaseMutex();
+            }
+            catch (Exception ex) when (ex is ApplicationException or ObjectDisposedException)
+            {
+                // Mutex may have been released on a different thread or already disposed during teardown.
+                Trace.TraceWarning($"Supervisor mutex release note: {ex.Message}");
+            }
+            try
+            {
+                _singleInstanceMutex.ReleaseMutex();
+            }
+            catch (Exception ex) when (ex is ApplicationException or ObjectDisposedException)
+            {
+                // Mutex may have been released on a different thread or already disposed during teardown.
+                Trace.TraceWarning($"Single-instance mutex release note: {ex.Message}");
+            }
         }
         _supervisorActiveMutex?.Dispose();
         _singleInstanceMutex.Dispose();

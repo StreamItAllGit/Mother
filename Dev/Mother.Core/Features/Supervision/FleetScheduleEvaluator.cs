@@ -137,9 +137,14 @@ public sealed class FleetScheduleEvaluator
                         {
                             await _http.PostAsync($"http://127.0.0.1:{port}{sched.TriggerEndpoint}", null, ct).ConfigureAwait(false);
                         }
-                        catch
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
                         {
-                            /* trigger endpoint invocation is best-effort */
+                            throw;
+                        }
+                        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
+                        {
+                            // Trigger endpoint invocation is best-effort once child worker is woken.
+                            _diag.Log("WARN", app.AppId, "Scheduler", $"Best-effort schedule trigger '{sched.TriggerEndpoint}' failed: {ex.Message}");
                         }
                     }
                 }

@@ -132,9 +132,10 @@ public sealed class MotherDiagnostics
             string line = JsonSerializer.Serialize(entry) + Environment.NewLine;
             File.AppendAllText(file, line, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            /* logging failure must never crash runtime */
+            // Logging failure must never crash runtime; surface to debug trace only.
+            System.Diagnostics.Trace.TraceWarning($"MotherDiagnostics JSONL append skipped: {ex.Message}");
         }
     }
 }
