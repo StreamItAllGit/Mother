@@ -1,0 +1,127 @@
+{
+  "folders": [
+    {
+      "name": "1. Mother — Dev",
+      "path": "."
+    },
+    {
+      "name": "2. Mother — Project Root",
+      "path": ".."
+    }
+  ],
+  "settings": {
+    "dotnet.defaultSolution": "Mother.slnx",
+    "files.eol": "\n",
+    "files.exclude": {
+      "**/bin": true,
+      "**/obj": true,
+      "**/__pycache__": true,
+      "**/.pytest_cache": true,
+      "**/.cache": true,
+      "**/node_modules": true,
+      "**/[Dd]esktop.ini": true,
+      "**/[Tt]humbs.db": true
+    }
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Build Mother (.NET)",
+        "type": "shell",
+        "command": "dotnet",
+        "args": [
+          "build",
+          "Mother.slnx",
+          "-c",
+          "Release",
+          "-p:TreatWarningsAsErrors=true"
+        ],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "problemMatcher": "$msCompile"
+      },
+      {
+        "label": "Test Mother (.NET)",
+        "type": "shell",
+        "command": "dotnet",
+        "args": [
+          "test",
+          "Mother.slnx",
+          "-c",
+          "Release",
+          "-p:TreatWarningsAsErrors=true"
+        ],
+        "options": {
+          "env": {
+            "APP_ISOLATED_TEST": "1"
+          }
+        },
+        "group": {
+          "kind": "test",
+          "isDefault": true
+        }
+      },
+      {
+        "label": "Deploy Mother Staging Build",
+        "type": "shell",
+        "command": "powershell",
+        "args": [
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "deploy.ps1",
+          "-BuildOnly"
+        ],
+        "group": {
+          "kind": "build",
+          "isDefault": false
+        }
+      },
+      {
+        "label": "Package Mother Release Bundle",
+        "type": "shell",
+        "command": "powershell",
+        "args": [
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "package_installer.ps1"
+        ],
+        "group": {
+          "kind": "build",
+          "isDefault": false
+        }
+      },
+      {
+        "label": "Audit Mother Scaffold",
+        "type": "shell",
+        "command": "powershell",
+        "args": [
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${userHome}/.gemini/config/skills/graduate/scripts/scaffold_project.ps1",
+          "-ProjectName",
+          "Mother",
+          "-Group",
+          "Personal",
+          "-AuditOnly"
+        ],
+        "group": {
+          "kind": "test",
+          "isDefault": false
+        }
+      }
+    ]
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-dotnettools.csdevkit",
+      "ms-python.python",
+      "dbaeumer.vscode-eslint"
+    ]
+  }
+}
